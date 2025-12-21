@@ -1,7 +1,7 @@
 # WMS User Guide
 
 > **Note:** For technical WMS documentation (installation, configuration, administration), see [WMS_Guide.md](./WMS_Guide.md).  
-> For system architecture overview, see [Documentation.md](./Documentation.md).
+> For system architecture overview, see [README.md](../README.md).
 
 ## What is WMS?
 
@@ -395,8 +395,8 @@ Before you can use the WMS layer, you need:
   - GeoServer setup
   - Database schema
   - Troubleshooting
-- **[Documentation.md](./Documentation.md)**: System architecture and overview
-- **[README.md](./README.md)**: Documentation navigation guide
+- **[README.md](../README.md)**: Project overview and architecture
+- **[docs/README.md](./README.md)**: Documentation navigation guide
 
 ## Feedback
 

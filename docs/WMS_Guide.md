@@ -1203,7 +1203,8 @@ main
 */5 * * * * /usr/local/bin/wms-health-check.sh
 
 # Daily maintenance at 2 AM
-0 2 * * * /opt/OSM-Notes-WMS/bin/wms/wmsManager.sh status
+# Adjust the path to match your installation directory
+0 2 * * * /path/to/OSM-Notes-WMS/bin/wms/wmsManager.sh status
 ```
 
 ### Performance Monitoring

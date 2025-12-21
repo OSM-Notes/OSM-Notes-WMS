@@ -1,7 +1,7 @@
 # WMS Manager Scripts
 
 This directory contains scripts for managing WMS (Web Map Service) components for
-the OSM-Notes-Ingestion project.
+the OSM-Notes-WMS project.
 
 ## Configuration
 
@@ -216,9 +216,9 @@ When you run `geoserverConfig.sh install`, the following objects are created in 
 
 After installation, the WMS service is available at:
 
-- **WMS URL**: `http://localhost:8888/geoserver/wms` (or your GeoServer URL)
+- **WMS URL**: `http://localhost:8080/geoserver/wms` (or your GeoServer URL)
 - **Layer Name**: `osm_notes:notes_wms_layer`
-- **GetCapabilities**: `http://localhost:8888/geoserver/wms?service=WMS&version=1.1.0&request=GetCapabilities`
+- **GetCapabilities**: `http://localhost:8080/geoserver/wms?service=WMS&version=1.1.0&request=GetCapabilities`
 
 ### Verifying Objects Were Created
 
@@ -238,7 +238,7 @@ You can verify objects directly using the GeoServer REST API:
 
 ```bash
 # Set your GeoServer credentials
-export GEOSERVER_URL="http://localhost:8888/geoserver"
+export GEOSERVER_URL="http://localhost:8080/geoserver"
 export GEOSERVER_USER="admin"
 export GEOSERVER_PASSWORD="geoserver"
 
@@ -275,7 +275,7 @@ curl -u "${GEOSERVER_USER}:${GEOSERVER_PASSWORD}" \
 
 You can view all created objects in the GeoServer web interface:
 
-1. **Access GeoServer Web**: `http://localhost:8888/geoserver/web`
+1. **Access GeoServer Web**: `http://localhost:8080/geoserver/web` (or your GeoServer URL)
 2. **Login** with your admin credentials
 3. **Navigate to**:
    - **Workspaces**: Data → Workspaces → Look for `osm_notes`
@@ -283,11 +283,11 @@ You can view all created objects in the GeoServer web interface:
    - **Layers**: Data → Layers → Look for `osm_notes:notes_wms_layer`
    - **Styles**: Styles → Look for `osm_notes_style` or `OpenNotes`
 
-**Direct Links** (after logging in):
-- Workspaces: `http://localhost:8888/geoserver/web/?wicket:bookmarkablePage=:org.geoserver.web.data.workspace.WorkspacePage`
-- Stores: `http://localhost:8888/geoserver/web/?wicket:bookmarkablePage=:org.geoserver.web.data.store.DataStoresPage`
-- Layers: `http://localhost:8888/geoserver/web/?wicket:bookmarkablePage=:org.geoserver.web.data.layers.LayersPage`
-- Styles: `http://localhost:8888/geoserver/web/?wicket:bookmarkablePage=:org.geoserver.web.data.style.StylesPage`
+**Direct Links** (after logging in, replace `localhost:8080` with your GeoServer host:port):
+- Workspaces: `http://localhost:8080/geoserver/web/?wicket:bookmarkablePage=:org.geoserver.web.data.workspace.WorkspacePage`
+- Stores: `http://localhost:8080/geoserver/web/?wicket:bookmarkablePage=:org.geoserver.web.data.store.DataStoresPage`
+- Layers: `http://localhost:8080/geoserver/web/?wicket:bookmarkablePage=:org.geoserver.web.data.layers.LayersPage`
+- Styles: `http://localhost:8080/geoserver/web/?wicket:bookmarkablePage=:org.geoserver.web.data.style.StylesPage`
 
 #### Troubleshooting: Objects Not Visible
 
@@ -301,7 +301,7 @@ If you don't see the objects in the web interface:
 2. **Verify GeoServer URL is correct**:
    ```bash
    echo $GEOSERVER_URL
-   # Should match your actual GeoServer URL (e.g., http://localhost:8888/geoserver)
+   # Should match your actual GeoServer URL (e.g., http://localhost:8080/geoserver)
    ```
 
 3. **Verify credentials are loaded correctly**:

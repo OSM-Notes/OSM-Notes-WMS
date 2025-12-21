@@ -54,19 +54,16 @@ Use the WMS manager script for easy installation and management:
 ```bash
 
 # Install WMS components
-~/OSM-Notes-WMS/bin/wms/wmsManager.sh install
-
+./bin/wms/wmsManager.sh install
 
 # Check installation status
-~/OSM-Notes-WMS/bin/wms/wmsManager.sh status
-
+./bin/wms/wmsManager.sh status
 
 # Remove WMS components
-~/OSM-Notes-WMS/bin/wms/wmsManager.sh remove
-
+./bin/wms/wmsManager.sh remove
 
 # Show help
-~/OSM-Notes-WMS/bin/wms/wmsManager.sh help
+./bin/wms/wmsManager.sh help
 ```
 
 The WMS manager script includes:
