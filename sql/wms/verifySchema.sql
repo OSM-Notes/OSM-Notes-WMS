@@ -103,6 +103,75 @@ BEGIN
 END $$;
 \echo ''
 
+-- Check required columns in countries table
+\echo '4.1. Checking required columns in countries table...'
+SELECT 
+  column_name, 
+  data_type,
+  is_nullable,
+  CASE 
+    WHEN column_name IN ('country_id', 'geom') THEN '✅ Required'
+    WHEN column_name IN ('country_name', 'country_name_en') THEN '✅ Required'
+    ELSE 'ℹ️  Other'
+  END AS status
+FROM information_schema.columns 
+WHERE table_schema = 'public'
+  AND table_name = 'countries' 
+  AND column_name IN ('country_id', 'country_name', 'country_name_en', 'geom')
+ORDER BY 
+  CASE 
+    WHEN column_name IN ('country_id', 'geom') THEN 1
+    WHEN column_name IN ('country_name', 'country_name_en') THEN 2
+    ELSE 3
+  END,
+  column_name;
+
+-- Verify all required columns exist in countries table
+DO $$
+DECLARE
+  missing_columns TEXT[];
+BEGIN
+  -- Check if countries table exists first
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables 
+    WHERE table_schema = 'public' AND table_name = 'countries'
+  ) THEN
+    -- Verify required columns: country_id, country_name_en (or country_name), geom
+    SELECT ARRAY_AGG(required_col)
+    INTO missing_columns
+    FROM (
+      SELECT unnest(ARRAY['country_id', 'geom']) AS required_col
+    ) req
+    WHERE NOT EXISTS (
+      SELECT 1 FROM information_schema.columns 
+      WHERE table_schema = 'public' 
+        AND table_name = 'countries' 
+        AND column_name = req.required_col
+    );
+
+    -- Check for country_name_en or country_name (at least one should exist)
+    IF NOT EXISTS (
+      SELECT 1 FROM information_schema.columns 
+      WHERE table_schema = 'public' 
+        AND table_name = 'countries' 
+        AND column_name IN ('country_name_en', 'country_name')
+    ) THEN
+      IF missing_columns IS NULL THEN
+        missing_columns := ARRAY['country_name_en'];
+      ELSE
+        missing_columns := array_append(missing_columns, 'country_name_en');
+      END IF;
+    END IF;
+
+    IF array_length(missing_columns, 1) > 0 THEN
+      RAISE EXCEPTION '❌ Missing required columns in countries table: %', array_to_string(missing_columns, ', ');
+    ELSE
+      RAISE NOTICE '✅ All required columns exist in countries table';
+    END IF;
+  END IF;
+END $$;
+\echo ''
+
 -- Check data exists
 \echo '5. Checking data availability...'
 DO $$

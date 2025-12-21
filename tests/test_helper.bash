@@ -26,6 +26,9 @@ create_wms_test_database() {
     createdb "${TEST_DBNAME}" 2> /dev/null || true
   fi
   
+  # Enable PostGIS extension if not already enabled (required for WMS)
+  psql -d "${TEST_DBNAME}" -c "CREATE EXTENSION IF NOT EXISTS postgis;" 2> /dev/null || true
+  
   # Try to use processPlanetNotes.sh --base from Ingestion project if available
   # This creates the base tables with the correct schema as defined by OSM-Notes-Ingestion
   local INGESTION_PROJECT="/home/angoca/github/OSM-Notes-Ingestion"
@@ -44,6 +47,8 @@ create_wms_test_database() {
     # This is equivalent to the first step of processAPINotes.sh hybrid mode
     if "${PROCESS_PLANET_SCRIPT}" --base > /tmp/processPlanetNotes_test.log 2>&1; then
       echo "Base tables created successfully using processPlanetNotes.sh --base"
+      # Ensure PostGIS is still enabled after processPlanetNotes.sh (it may have been dropped)
+      psql -d "${TEST_DBNAME}" -c "CREATE EXTENSION IF NOT EXISTS postgis;" 2> /dev/null || true
     else
       echo "Warning: processPlanetNotes.sh --base failed, falling back to manual table creation"
       echo "Check /tmp/processPlanetNotes_test.log for details"
