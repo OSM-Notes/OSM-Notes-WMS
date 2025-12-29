@@ -1,0 +1,24 @@
+# WMS properties files (contain sensitive credentials)
+# These files should never be committed to Git
+etc/wms.properties.sh
+etc/wms.properties.sh_local
+etc/wms.properties.sh*.backup.*
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+*~
+
+# Editor backup files
+*.swp
+*.swo
+*~
+
+# Temporary files
+*.tmp
+*.log
+
+# Build artifacts (if any)
+*.o
+*.pyc
+__pycache__/
