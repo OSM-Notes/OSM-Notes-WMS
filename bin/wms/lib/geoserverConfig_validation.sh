@@ -32,10 +32,11 @@ validate_prerequisites() {
  local HTTP_CODE
 
  while [[ ${RETRY_COUNT} -lt ${MAX_RETRIES} ]]; do
+  # Use || to handle curl failures without stopping the script
   HTTP_CODE=$(curl -s -w "%{http_code}" -o "${TEMP_STATUS_FILE}" \
    --connect-timeout 10 --max-time 30 \
    -u "${GEOSERVER_USER}:${GEOSERVER_PASSWORD}" \
-   "${GEOSERVER_STATUS_URL}" 2> "${TEMP_ERROR_FILE}")
+   "${GEOSERVER_STATUS_URL}" 2> "${TEMP_ERROR_FILE}") || HTTP_CODE="000"
 
   if [[ "${HTTP_CODE}" == "200" ]]; then
    if [[ -f "${TEMP_STATUS_FILE}" ]] && [[ -s "${TEMP_STATUS_FILE}" ]]; then

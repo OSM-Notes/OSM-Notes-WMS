@@ -40,13 +40,56 @@ remove_geoserver_config() {
   return 0
  fi
 
+ # Validate required variables
+ if [[ -z "${GEOSERVER_URL:-}" ]]; then
+  print_status "${RED}" "❌ ERROR: GEOSERVER_URL is not set"
+  print_status "${YELLOW}" "💡 Set it in etc/wms.properties.sh or as environment variable"
+  return 1
+ fi
+ if [[ -z "${GEOSERVER_USER:-}" ]]; then
+  print_status "${RED}" "❌ ERROR: GEOSERVER_USER is not set"
+  print_status "${YELLOW}" "💡 Set it in etc/wms.properties.sh or as environment variable"
+  return 1
+ fi
+ if [[ -z "${GEOSERVER_PASSWORD:-}" ]]; then
+  print_status "${RED}" "❌ ERROR: GEOSERVER_PASSWORD is not set"
+  print_status "${YELLOW}" "💡 Set it in etc/wms.properties.sh or as environment variable"
+  return 1
+ fi
+ if [[ -z "${GEOSERVER_WORKSPACE:-}" ]]; then
+  print_status "${RED}" "❌ ERROR: GEOSERVER_WORKSPACE is not set"
+  print_status "${YELLOW}" "💡 Set it in etc/wms.properties.sh or as environment variable"
+  return 1
+ fi
+
  # Check if workspace exists first
  local WORKSPACE_CHECK_URL="${GEOSERVER_URL}/rest/workspaces/${GEOSERVER_WORKSPACE}"
  local WORKSPACE_CHECK_CODE
- WORKSPACE_CHECK_CODE=$(curl -s -w "%{http_code}" -o /dev/null -u "${GEOSERVER_USER}:${GEOSERVER_PASSWORD}" "${WORKSPACE_CHECK_URL}" 2> /dev/null | tail -1)
+ local TEMP_CURL_OUTPUT="${TMP_DIR}/workspace_check_$$.tmp"
+ local TEMP_CURL_ERROR="${TMP_DIR}/workspace_check_error_$$.tmp"
+ 
+ # Use a subshell to avoid set -e from stopping the script
+ WORKSPACE_CHECK_CODE=$(curl -s -w "%{http_code}" -o "${TEMP_CURL_OUTPUT}" \
+  -u "${GEOSERVER_USER}:${GEOSERVER_PASSWORD}" \
+  --connect-timeout 5 --max-time 10 \
+  "${WORKSPACE_CHECK_URL}" 2> "${TEMP_CURL_ERROR}" | tail -1) || WORKSPACE_CHECK_CODE="000"
+ 
+ # Check if curl failed completely (connection error)
+ if [[ "${WORKSPACE_CHECK_CODE}" == "000" ]] || [[ -z "${WORKSPACE_CHECK_CODE}" ]]; then
+  local CURL_ERROR_MSG
+  CURL_ERROR_MSG=$(cat "${TEMP_CURL_ERROR}" 2> /dev/null || echo "Connection failed")
+  rm -f "${TEMP_CURL_OUTPUT}" "${TEMP_CURL_ERROR}" 2> /dev/null || true
+  print_status "${RED}" "❌ ERROR: Failed to connect to GeoServer at ${GEOSERVER_URL}"
+  print_status "${YELLOW}" "💡 Check if GeoServer is running and credentials are correct"
+  if [[ -n "${CURL_ERROR_MSG}" ]] && [[ "${CURL_ERROR_MSG}" != "Connection failed" ]]; then
+   print_status "${YELLOW}" "   Error: ${CURL_ERROR_MSG}"
+  fi
+  return 1
+ fi
+ rm -f "${TEMP_CURL_OUTPUT}" "${TEMP_CURL_ERROR}" 2> /dev/null || true
 
  if [[ "${WORKSPACE_CHECK_CODE}" != "200" ]]; then
-  print_status "${YELLOW}" "⚠️  Workspace '${GEOSERVER_WORKSPACE}' not found"
+  print_status "${YELLOW}" "⚠️  Workspace '${GEOSERVER_WORKSPACE}' not found (HTTP ${WORKSPACE_CHECK_CODE})"
   print_status "${GREEN}" "✅ GeoServer configuration already removed (workspace does not exist)"
   return 0
  fi

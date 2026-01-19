@@ -68,14 +68,56 @@ upload_style() {
 
  # If style exists, delete it first to avoid corruption issues, then create it
  # This is important because GeoServer may cache a corrupted version of the style
- if [[ "${CHECK_HTTP_CODE}" == "200" ]]; then
-  # Style exists, delete it first to avoid corruption issues
+ # Also try to delete from both workspace-specific and global locations when using --force
+ if [[ "${CHECK_HTTP_CODE}" == "200" ]] || [[ "${FORCE_UPLOAD}" == "true" ]]; then
+  # Style exists or force mode - delete it first from all possible locations
   print_status "${BLUE}" "   Removing existing style '${ACTUAL_STYLE_NAME}' before recreating..."
   local DELETE_CODE
-  DELETE_CODE=$(curl -s -w "%{http_code}" -o /dev/null \
-   -u "${GEOSERVER_USER}:${GEOSERVER_PASSWORD}" \
-   -X DELETE "${STYLE_CHECK_URL}" 2> /dev/null | tail -1)
-  if [[ "${DELETE_CODE}" == "200" ]] || [[ "${DELETE_CODE}" == "204" ]]; then
+  local STYLE_DELETED=false
+  
+  # Try to delete from workspace-specific location first
+  if [[ -n "${GEOSERVER_WORKSPACE:-}" ]]; then
+   local WORKSPACE_DELETE_URL="${GEOSERVER_URL}/rest/workspaces/${GEOSERVER_WORKSPACE}/styles/${ACTUAL_STYLE_NAME}"
+   DELETE_CODE=$(curl -s -w "%{http_code}" -o /dev/null \
+    -u "${GEOSERVER_USER}:${GEOSERVER_PASSWORD}" \
+    -X DELETE "${WORKSPACE_DELETE_URL}" 2> /dev/null | tail -1)
+   if [[ "${DELETE_CODE}" == "200" ]] || [[ "${DELETE_CODE}" == "204" ]]; then
+    STYLE_DELETED=true
+   fi
+  fi
+  
+  # Also try to delete from global location (in case it exists there)
+  if [[ "${STYLE_DELETED}" == "false" ]] || [[ "${FORCE_UPLOAD}" == "true" ]]; then
+   local GLOBAL_DELETE_URL="${GEOSERVER_URL}/rest/styles/${ACTUAL_STYLE_NAME}"
+   DELETE_CODE=$(curl -s -w "%{http_code}" -o /dev/null \
+    -u "${GEOSERVER_USER}:${GEOSERVER_PASSWORD}" \
+    -X DELETE "${GLOBAL_DELETE_URL}" 2> /dev/null | tail -1)
+   if [[ "${DELETE_CODE}" == "200" ]] || [[ "${DELETE_CODE}" == "204" ]]; then
+    STYLE_DELETED=true
+   fi
+  fi
+  
+  # Also try with provided name if different from actual name
+  if [[ "${STYLE_NAME}" != "${ACTUAL_STYLE_NAME}" ]]; then
+   if [[ -n "${GEOSERVER_WORKSPACE:-}" ]]; then
+    local WORKSPACE_DELETE_URL_NAME="${GEOSERVER_URL}/rest/workspaces/${GEOSERVER_WORKSPACE}/styles/${STYLE_NAME}"
+    DELETE_CODE=$(curl -s -w "%{http_code}" -o /dev/null \
+     -u "${GEOSERVER_USER}:${GEOSERVER_PASSWORD}" \
+     -X DELETE "${WORKSPACE_DELETE_URL_NAME}" 2> /dev/null | tail -1)
+    if [[ "${DELETE_CODE}" == "200" ]] || [[ "${DELETE_CODE}" == "204" ]]; then
+     STYLE_DELETED=true
+    fi
+   fi
+   local GLOBAL_DELETE_URL_NAME="${GEOSERVER_URL}/rest/styles/${STYLE_NAME}"
+   DELETE_CODE=$(curl -s -w "%{http_code}" -o /dev/null \
+    -u "${GEOSERVER_USER}:${GEOSERVER_PASSWORD}" \
+    -X DELETE "${GLOBAL_DELETE_URL_NAME}" 2> /dev/null | tail -1)
+   if [[ "${DELETE_CODE}" == "200" ]] || [[ "${DELETE_CODE}" == "204" ]]; then
+    STYLE_DELETED=true
+   fi
+  fi
+  
+  if [[ "${STYLE_DELETED}" == "true" ]]; then
    sleep 2 # Wait a moment for GeoServer to process the deletion and clear cache
   fi
  fi
@@ -179,28 +221,63 @@ upload_style() {
 remove_style() {
  local STYLE_NAME="${1}"
 
- # Remove style (styles are global resources, not workspace-specific)
- local STYLE_URL="${GEOSERVER_URL}/rest/styles/${STYLE_NAME}"
+ # Try to remove style from workspace-specific location first (if workspace is set)
+ # Then try global location
+ # Styles can exist in either location depending on how they were created
+ local STYLE_REMOVED=false
  local TEMP_RESPONSE="${TMP_DIR}/style_delete_${STYLE_NAME}_$$.tmp"
  local HTTP_CODE
- HTTP_CODE=$(curl -s -w "%{http_code}" -o "${TEMP_RESPONSE}" \
-  -u "${GEOSERVER_USER}:${GEOSERVER_PASSWORD}" \
-  -X DELETE "${STYLE_URL}" 2> /dev/null | tail -1)
  local RESPONSE_BODY
- RESPONSE_BODY=$(cat "${TEMP_RESPONSE}" 2> /dev/null || echo "")
+
+ # First, try workspace-specific location
+ if [[ -n "${GEOSERVER_WORKSPACE:-}" ]]; then
+  local WORKSPACE_STYLE_URL="${GEOSERVER_URL}/rest/workspaces/${GEOSERVER_WORKSPACE}/styles/${STYLE_NAME}"
+  HTTP_CODE=$(curl -s -w "%{http_code}" -o "${TEMP_RESPONSE}" \
+   -u "${GEOSERVER_USER}:${GEOSERVER_PASSWORD}" \
+   -X DELETE "${WORKSPACE_STYLE_URL}" 2> /dev/null | tail -1)
+  RESPONSE_BODY=$(cat "${TEMP_RESPONSE}" 2> /dev/null || echo "")
+  
+  if [[ "${HTTP_CODE}" == "200" ]] || [[ "${HTTP_CODE}" == "204" ]]; then
+   print_status "${GREEN}" "✅ Style '${STYLE_NAME}' removed (from workspace)"
+   STYLE_REMOVED=true
+  elif [[ "${HTTP_CODE}" == "404" ]]; then
+   # Not found in workspace, will try global location
+   :
+  else
+   # Error but not 404, log it but continue to try global location
+   if [[ "${VERBOSE:-false}" == "true" ]]; then
+    print_status "${YELLOW}" "   Workspace removal attempt failed (HTTP ${HTTP_CODE})"
+   fi
+  fi
+ fi
+
+ # If not removed from workspace, try global location
+ if [[ "${STYLE_REMOVED}" == "false" ]]; then
+  local GLOBAL_STYLE_URL="${GEOSERVER_URL}/rest/styles/${STYLE_NAME}"
+  HTTP_CODE=$(curl -s -w "%{http_code}" -o "${TEMP_RESPONSE}" \
+   -u "${GEOSERVER_USER}:${GEOSERVER_PASSWORD}" \
+   -X DELETE "${GLOBAL_STYLE_URL}" 2> /dev/null | tail -1)
+  RESPONSE_BODY=$(cat "${TEMP_RESPONSE}" 2> /dev/null || echo "")
+  
+  if [[ "${HTTP_CODE}" == "200" ]] || [[ "${HTTP_CODE}" == "204" ]]; then
+   print_status "${GREEN}" "✅ Style '${STYLE_NAME}' removed (from global)"
+   STYLE_REMOVED=true
+  elif [[ "${HTTP_CODE}" == "404" ]]; then
+   print_status "${YELLOW}" "⚠️  Style '${STYLE_NAME}' not found (already removed)"
+   STYLE_REMOVED=true # Consider it removed if not found
+  else
+   print_status "${YELLOW}" "⚠️  Style '${STYLE_NAME}' removal failed (HTTP ${HTTP_CODE})"
+   if [[ -n "${RESPONSE_BODY}" ]] && [[ "${VERBOSE:-false}" == "true" ]]; then
+    print_status "${YELLOW}" "   Response: $(echo "${RESPONSE_BODY}" | head -3 | tr '\n' ' ')"
+   fi
+  fi
+ fi
+
  rm -f "${TEMP_RESPONSE}" 2> /dev/null || true
 
- if [[ "${HTTP_CODE}" == "200" ]] || [[ "${HTTP_CODE}" == "204" ]]; then
-  print_status "${GREEN}" "✅ Style '${STYLE_NAME}' removed"
-  return 0
- elif [[ "${HTTP_CODE}" == "404" ]]; then
-  print_status "${YELLOW}" "⚠️  Style '${STYLE_NAME}' not found (already removed)"
+ if [[ "${STYLE_REMOVED}" == "true" ]]; then
   return 0
  else
-  print_status "${YELLOW}" "⚠️  Style '${STYLE_NAME}' removal failed (HTTP ${HTTP_CODE})"
-  if [[ -n "${RESPONSE_BODY}" ]] && [[ "${VERBOSE:-false}" == "true" ]]; then
-   print_status "${YELLOW}" "   Response: $(echo "${RESPONSE_BODY}" | head -3 | tr '\n' ' ')"
-  fi
   return 1
  fi
 }
