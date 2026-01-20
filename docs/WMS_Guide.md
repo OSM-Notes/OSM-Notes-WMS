@@ -386,7 +386,7 @@ The WMS project is designed to work with the current schema version of OSM-Notes
 2. **Review changelog**: Check if there have been recent schema changes in OSM-Notes-Ingestion
 3. **Update if needed**: Upgrade OSM-Notes-Ingestion to the latest version if your version is outdated
 
-For the latest schema requirements, refer to the [OSM-Notes-Ingestion documentation](https://github.com/OSMLatam/OSM-Notes-Ingestion).
+For the latest schema requirements, refer to the [OSM-Notes-Ingestion documentation](https://github.com/OSM-Notes/OSM-Notes-Ingestion).
 
 ## Practical Examples
 
@@ -1491,7 +1491,7 @@ export GEOSERVER_OPTS="-Xms4g -Xmx8g -XX:+UseG1GC"
 
 #### System Documentation
 
-> **Note:** The following documentation files are part of the [OSM-Notes-Ingestion](https://github.com/OSMLatam/OSM-Notes-Ingestion) project, which provides the data source for this WMS service:
+> **Note:** The following documentation files are part of the [OSM-Notes-Ingestion](https://github.com/OSM-Notes/OSM-Notes-Ingestion) project, which provides the data source for this WMS service:
 >
 > - **Documentation.md**: Complete system architecture and technical overview (in OSM-Notes-Ingestion)
 > - **Component_Dependencies.md**: Component dependencies and data flow (in OSM-Notes-Ingestion)
@@ -1499,7 +1499,7 @@ export GEOSERVER_OPTS="-Xms4g -Xmx8g -XX:+UseG1GC"
 
 #### Processing Documentation
 
-> **Note:** The following documentation files describe the data ingestion process in the [OSM-Notes-Ingestion](https://github.com/OSMLatam/OSM-Notes-Ingestion) project:
+> **Note:** The following documentation files describe the data ingestion process in the [OSM-Notes-Ingestion](https://github.com/OSM-Notes/OSM-Notes-Ingestion) project:
 >
 > - **Process_API.md**: API processing details (WMS data source) (in OSM-Notes-Ingestion)
 > - **Process_Planet.md**: Planet processing details (WMS data source) (in OSM-Notes-Ingestion)

@@ -6,7 +6,7 @@ This repository provides WMS (Web Map Service) layer publication for OSM notes,
 allowing mappers to visualize note activity geographically in mapping
 applications like JOSM or Vespucci.
 
-> **Note:** This project was extracted from [OSM-Notes-Ingestion](https://github.com/OSMLatam/OSM-Notes-Ingestion)
+> **Note:** This project was extracted from [OSM-Notes-Ingestion](https://github.com/OSM-Notes/OSM-Notes-Ingestion)
 > to provide focused documentation and maintainability. The WMS service requires
 > access to a database populated by the OSM-Notes-Ingestion project.
 
@@ -50,7 +50,7 @@ and closed OSM notes on a map. The service allows mappers to:
 Before installing WMS, ensure you have:
 
 1. **PostgreSQL with PostGIS**
-   - Database must be populated by [OSM-Notes-Ingestion](https://github.com/OSMLatam/OSM-Notes-Ingestion)
+   - Database must be populated by [OSM-Notes-Ingestion](https://github.com/OSM-Notes/OSM-Notes-Ingestion)
    - Access to tables: `notes`, `countries` (schema `public`)
    - PostGIS extension installed
 
@@ -235,7 +235,7 @@ done
 
 ### External Dependencies
 
-- **OSM-Notes-Ingestion Database**: This project requires access to a PostgreSQL database populated by the [OSM-Notes-Ingestion](https://github.com/OSMLatam/OSM-Notes-Ingestion) project
+- **OSM-Notes-Ingestion Database**: This project requires access to a PostgreSQL database populated by the [OSM-Notes-Ingestion](https://github.com/OSM-Notes/OSM-Notes-Ingestion) project
   - Schema `public`: tables `notes`, `countries`
   - This WMS project creates and manages schema `wms`
 
