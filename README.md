@@ -166,6 +166,92 @@ When setting up the complete ecosystem, install projects in this order:
 
 **Total time: ~1.5 hours** for complete developer overview.
 
+## Entry Points
+
+**Main entry points** for using and operating WMS:
+
+### Script Entry Points
+
+1. **WMS Manager** (`bin/wms/wmsManager.sh`)
+   ```bash
+   # Main script for managing WMS layers
+   ./bin/wms/wmsManager.sh [command] [options]
+   
+   # Available commands:
+   ./bin/wms/wmsManager.sh create      # Create WMS layers
+   ./bin/wms/wmsManager.sh update      # Update existing layers
+   ./bin/wms/wmsManager.sh delete      # Delete layers
+   ./bin/wms/wmsManager.sh status      # Check layer status
+   ```
+
+2. **GeoServer Configuration** (`bin/wms/geoserverConfig.sh`)
+   ```bash
+   # Configure GeoServer workspace and stores
+   ./bin/wms/geoserverConfig.sh
+   ```
+
+See [bin/wms/README.md](./bin/wms/README.md) for complete script documentation.
+
+### SQL Entry Points
+
+1. **Create WMS Schema**
+   ```bash
+   # Run SQL scripts to create WMS schema and views
+   psql -d your_database -f sql/wms/create_wms_schema.sql
+   ```
+
+2. **Create WMS Views**
+   ```bash
+   # Create views for notes and countries
+   psql -d your_database -f sql/wms/create_wms_views.sql
+   ```
+
+See [sql/wms/README.md](./sql/wms/README.md) for complete SQL documentation.
+
+### GeoServer Entry Points
+
+**Production GeoServer**: `geoserver.osm.lat`
+
+1. **WMS Service URL**
+   - **Production**: `https://geoserver.osm.lat/geoserver/osm_notes/wms`
+   - **Development**: `http://localhost:8080/geoserver/osm_notes/wms`
+
+2. **GetCapabilities**
+   - **Production**: `https://geoserver.osm.lat/geoserver/osm_notes/wms?service=WMS&version=1.1.0&request=GetCapabilities`
+   - **Development**: `http://localhost:8080/geoserver/osm_notes/wms?service=WMS&version=1.1.0&request=GetCapabilities`
+
+3. **GetMap** (example)
+   - **Production**: `https://geoserver.osm.lat/geoserver/osm_notes/wms?service=WMS&version=1.1.0&request=GetMap&layers=osm_notes:notes&bbox=-180,-90,180,90&width=800&height=600&srs=EPSG:4326&format=image/png`
+   - **Development**: `http://localhost:8080/geoserver/osm_notes/wms?service=WMS&version=1.1.0&request=GetMap&layers=osm_notes:notes&bbox=-180,-90,180,90&width=800&height=600&srs=EPSG:4326&format=image/png`
+
+### Client Usage Entry Points
+
+1. **JOSM** (Java OpenStreetMap Editor)
+   - Add WMS layer: Right-click → Imagery → Add Imagery
+   - **Production URL**: `https://geoserver.osm.lat/geoserver/osm_notes/wms`
+   - **Development URL**: `http://localhost:8080/geoserver/osm_notes/wms`
+   - See [docs/WMS_User_Guide.md](./docs/WMS_User_Guide.md) for detailed instructions
+
+2. **Vespucci** (Mobile OSM Editor)
+   - Add WMS layer via settings
+   - **Production URL**: `https://geoserver.osm.lat/geoserver/osm_notes/wms`
+   - **Development URL**: `http://localhost:8080/geoserver/osm_notes/wms`
+
+3. **QGIS** (Desktop GIS)
+   - Add WMS layer: Layer → Add Layer → Add WMS/WMTS Layer
+   - **Production URL**: `https://geoserver.osm.lat/geoserver/osm_notes/wms`
+   - **Development URL**: `http://localhost:8080/geoserver/osm_notes/wms`
+
+### Configuration Entry Point
+
+- **WMS Properties**: `etc/wms.properties.sh` - Main configuration file
+  ```bash
+  # Copy example and configure
+  cp etc/wms.properties.sh.example etc/wms.properties.sh
+  chmod 600 etc/wms.properties.sh
+  vi etc/wms.properties.sh
+  ```
+
 ## Prerequisites
 
 Before installing WMS, ensure you have:
@@ -265,10 +351,13 @@ psql -d notes -f sql/wms/grantGeoserverPermissions.sql
 
 ### 4. Access WMS Service
 
-- **WMS URL**: `http://localhost:8080/geoserver/wms` (or your GeoServer URL)
+- **WMS URL**: 
+  - **Production**: `https://geoserver.osm.lat/geoserver/osm_notes/wms`
+  - **Development**: `http://localhost:8080/geoserver/osm_notes/wms`
 - **Layer Name**: `osm_notes:notes_wms_layer`
 - **GetCapabilities**:
-  `http://localhost:8080/geoserver/wms?service=WMS&version=1.1.0&request=GetCapabilities`
+  - **Production**: `https://geoserver.osm.lat/geoserver/osm_notes/wms?service=WMS&version=1.1.0&request=GetCapabilities`
+  - **Development**: `http://localhost:8080/geoserver/osm_notes/wms?service=WMS&version=1.1.0&request=GetCapabilities`
 
 ## Practical Examples
 
@@ -326,7 +415,9 @@ psql -d notes -c "SELECT COUNT(*) FROM wms.notes_wms;"
 1. Open JOSM
 2. Go to **Imagery** → **Imagery preferences**
 3. Click **Add new** → **WMS/WMTS**
-4. Enter WMS URL: `http://your-server:8080/geoserver/wms`
+4. Enter WMS URL: 
+   - **Production**: `https://geoserver.osm.lat/geoserver/osm_notes/wms`
+   - **Development**: `http://localhost:8080/geoserver/osm_notes/wms`
 5. Select layer: `osm_notes:notesopen` (for open notes) or `osm_notes:notesclosed` (for closed
    notes)
 6. Click **OK** and the layer will appear in your map
