@@ -543,6 +543,8 @@ done
 
 ## Requirements
 
+For complete installation instructions, see **[Installation and Dependencies Guide](docs/Installation_Dependencies.md)**.
+
 ### Application Requirements
 
 - **PostgreSQL with PostGIS**: Database with spatial extensions
