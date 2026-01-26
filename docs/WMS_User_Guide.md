@@ -54,8 +54,10 @@ Before you can use the WMS layer, you need:
    - Select `Add WMS Layer...`
 
 3. **Enter WMS Details**
-   - **WMS URL**: `http://localhost:8080/geoserver/wms`
-   - **Layer Name**: `osm_notes:notes_wms_layer`
+   - **WMS URL**: 
+     - **Production**: `https://geoserver.osm.lat/geoserver/osm_notes/wms`
+     - **Development**: `http://localhost:8080/geoserver/osm_notes/wms`
+   - **Layer Name**: `osm_notes:notes_wms_layer` (or `osm_notes:notesopen` for open notes)
    - Click `OK`
 
 4. **Configure Layer**
@@ -73,8 +75,10 @@ Before you can use the WMS layer, you need:
    - Select `Add WMS Layer...`
 
 3. **Enter WMS Details**
-   - **WMS URL**: `http://localhost:8080/geoserver/wms`
-   - **Layer Name**: `osm_notes:notes_wms_layer`
+   - **WMS URL**: 
+     - **Production**: `https://geoserver.osm.lat/geoserver/osm_notes/wms`
+     - **Development**: `http://localhost:8080/geoserver/osm_notes/wms`
+   - **Layer Name**: `osm_notes:notes_wms_layer` (or `osm_notes:notesopen` for open notes)
    - Tap `OK`
 
 4. **Configure Layer**
