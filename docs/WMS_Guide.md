@@ -1,3 +1,18 @@
+---
+title: "WMS (Web Map Service) Guide"
+description: "This is the complete WMS documentation guide for system administrators and developers. For end"
+version: "1.0.0"
+last_updated: "2026-01-25"
+author: "AngocA"
+tags:
+  - "guide"
+audience:
+  - "developers"
+project: "OSM-Notes-WMS"
+status: "active"
+---
+
+
 # WMS (Web Map Service) Guide
 
 ## Documentation Index

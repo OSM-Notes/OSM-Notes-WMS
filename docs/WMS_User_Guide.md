@@ -1,3 +1,19 @@
+---
+title: "WMS User Guide"
+description: "WMS (Web Map Service) is a way to view OSM notes on a map. Think of it as a special layer that shows"
+version: "1.0.0"
+last_updated: "2026-01-25"
+author: "AngocA"
+tags:
+  - "guide"
+audience:
+  - "users"
+  - "developers"
+project: "OSM-Notes-WMS"
+status: "active"
+---
+
+
 # WMS User Guide
 
 > **Note:** For technical WMS documentation (installation, configuration, administration), see
