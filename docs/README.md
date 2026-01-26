@@ -1,3 +1,21 @@
+---
+title: "OSM-Notes-WMS Documentation"
+description: "Documentation index for OSM-Notes-WMS Web Map Service"
+version: "1.0.0"
+last_updated: "2026-01-25"
+author: "AngocA"
+tags:
+  - "documentation"
+  - "wms"
+  - "index"
+audience:
+  - "mappers"
+  - "developers"
+  - "system-admins"
+project: "OSM-Notes-WMS"
+status: "active"
+---
+
 # WMS Documentation
 
 This directory contains documentation for the OSM-Notes-WMS project.
