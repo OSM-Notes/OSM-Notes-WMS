@@ -1,0 +1,262 @@
+# CI/CD Pipeline - OSM-Notes-WMS
+# Unified workflow structure for Bash/SQL projects
+# Author: Andres Gomez (AngocA)
+# Version: 2026-01-27
+
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  schedule:
+    # Run weekly on Monday at 2am UTC
+    - cron: "0 2 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # ============================================================================
+  # STAGE 1: Quality Checks (parallel, fast feedback)
+  # ============================================================================
+  shellcheck:
+    name: ShellCheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install shellcheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+
+      - name: Run shellcheck on WMS scripts
+        run: |
+          echo "Running shellcheck on WMS scripts..."
+          find bin -name "*.sh" -type f -exec shellcheck -x -o all {} \;
+
+  formatting:
+    name: Code Formatting Checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install shfmt
+        run: |
+          wget -q -O shfmt https://github.com/mvdan/sh/releases/download/v3.7.0/shfmt_v3.7.0_linux_amd64
+          chmod +x shfmt
+          sudo mv shfmt /usr/local/bin/
+          shfmt -version
+
+      - name: Check bash formatting with shfmt
+        run: |
+          echo "Checking bash code formatting..."
+          find bin tests -name "*.sh" -type f -exec shfmt -d -i 1 -sr -bn {} \;
+
+      - name: Install SQLFluff
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y sqlfluff || pip3 install sqlfluff
+
+      - name: Check SQL formatting
+        continue-on-error: true
+        run: |
+          if command -v sqlfluff &> /dev/null; then
+            find sql -name "*.sql" -type f -exec sqlfluff lint {} \; || echo "SQL formatting issues found (non-blocking)"
+          fi
+
+      - name: Setup Node.js for Prettier
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install Prettier
+        run: npm install -g prettier
+
+      - name: Check formatting with Prettier
+        continue-on-error: true
+        run: |
+          prettier --check "**/*.{md,json,yaml,yml,css,html}" --ignore-path .prettierignore 2>/dev/null || echo "Prettier formatting issues found (non-blocking)"
+
+  code-quality:
+    name: Code Quality Checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Check for common issues
+        run: |
+          echo "Checking for common code quality issues..."
+          
+          # Check for trailing whitespace
+          echo "Checking trailing whitespace..."
+          set +e
+          TRAILING_FILES=$(find bin -name "*.sh" -type f -exec grep -l " $" {} \; 2>/dev/null)
+          set -e
+          if [[ -n "${TRAILING_FILES}" ]]; then
+            echo "⚠️  Found trailing whitespace in scripts"
+            echo "${TRAILING_FILES}"
+            exit 1
+          else
+            echo "✓ No trailing whitespace found"
+          fi
+          
+          # Check for proper shebang
+          echo "Checking shebangs..."
+          set +e
+          INVALID_SHEBANGS=$(find bin -name "*.sh" -type f -exec head -1 {} \; | grep -v '#!/bin/bash\|#!/usr/bin/env bash' | wc -l)
+          set -e
+          INVALID_SHEBANGS=$(echo "$INVALID_SHEBANGS" | tr -d ' \n')
+          if [[ "${INVALID_SHEBANGS}" -gt 0 ]]; then
+            echo "⚠️  Found ${INVALID_SHEBANGS} script(s) without proper shebang"
+            exit 1
+          else
+            echo "✓ All shebangs correct"
+          fi
+
+  # ============================================================================
+  # STAGE 2: Tests (requires database)
+  # ============================================================================
+  tests:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    needs: [shellcheck, formatting, code-quality]
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgis/postgis:15-3.3
+        env:
+          POSTGRES_USER: testuser
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_DB: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    env:
+      TEST_DBNAME: osm_notes_wms_test
+      TEST_DBUSER: testuser
+      TEST_DBPASSWORD: testpass
+      TEST_DBHOST: localhost
+      TEST_DBPORT: 5432
+      PGPASSWORD: testpass
+      DBNAME: osm_notes_wms_test
+      DBUSER: testuser
+      DBPASSWORD: testpass
+      DBHOST: localhost
+      DBPORT: 5432
+      MOCK_MODE: 0
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bats postgresql-client
+
+      - name: Wait for PostgreSQL to be ready
+        run: |
+          until pg_isready -h localhost -U testuser -d postgres; do
+            echo "Waiting for PostgreSQL..."
+            sleep 2
+          done
+          echo "PostgreSQL is ready!"
+
+      - name: Create test database
+        run: |
+          PGPASSWORD=testpass createdb -h localhost -U testuser osm_notes_wms_test || echo "Database may already exist"
+          PGPASSWORD=testpass psql -h localhost -U testuser -d osm_notes_wms_test -c "CREATE EXTENSION IF NOT EXISTS postgis;"
+          echo "Test database created and PostGIS extension enabled"
+
+      - name: Make scripts executable
+        run: |
+          find bin -type f -name "*.sh" -exec chmod +x {} \;
+          find tests -type f -name "*.sh" -exec chmod +x {} \;
+          find tests -type f -name "*.bats" -exec chmod +x {} \;
+
+      - name: Run all tests (master test runner)
+        run: |
+          echo "Running master test runner: tests/run_all_tests.sh"
+          ./tests/run_all_tests.sh
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: /tmp/*test*.log
+          if-no-files-found: ignore
+
+  # ============================================================================
+  # STAGE 3: Summary
+  # ============================================================================
+  summary:
+    name: CI Summary
+    runs-on: ubuntu-latest
+    needs: [shellcheck, formatting, code-quality, tests]
+    if: always()
+
+    steps:
+      - name: Check all results
+        run: |
+          echo "## CI Results Summary - OSM-Notes-WMS" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ needs.shellcheck.result }}" == "success" ]; then
+            echo "✅ Shellcheck: PASSED" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Shellcheck: FAILED" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "${{ needs.formatting.result }}" == "success" ]; then
+            echo "✅ Code Formatting: PASSED" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Code Formatting: FAILED" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "${{ needs.code-quality.result }}" == "success" ]; then
+            echo "✅ Code Quality Checks: PASSED" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Code Quality Checks: FAILED" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "${{ needs.tests.result }}" == "success" ]; then
+            echo "✅ Tests: PASSED" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Tests: FAILED" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Exit with error if any job failed
+          if [ "${{ needs.shellcheck.result }}" != "success" ] || \
+             [ "${{ needs.formatting.result }}" != "success" ] || \
+             [ "${{ needs.code-quality.result }}" != "success" ] || \
+             [ "${{ needs.tests.result }}" != "success" ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "❌ Some checks failed. Please review the logs above." >> $GITHUB_STEP_SUMMARY
+            exit 1
+          else
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "✅ All checks passed!" >> $GITHUB_STEP_SUMMARY
+            exit 0
+          fi
