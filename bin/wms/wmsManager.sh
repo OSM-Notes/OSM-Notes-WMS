@@ -116,20 +116,20 @@ ENVIRONMENT VARIABLES:
   Database connection (uses same variables as rest of project):
   DBNAME         Database name (from etc/properties.sh, default: notes)
   DB_USER        Database user (from etc/properties.sh, empty for peer auth)
-  
+
   Note: wmsManager.sh requires elevated privileges (CREATE, ALTER, etc.)
         It uses the system user (notes) via peer authentication, NOT geoserver
     DB_PASSWORD    Database password (from etc/properties.sh)
     DB_HOST        Database host (from etc/properties.sh, empty for peer auth)
     DB_PORT        Database port (from etc/properties.sh, empty for default)
-  
+
   WMS-specific overrides (optional, only if different from main config):
     WMS_DBNAME     Override database name
     WMS_DBUSER     Override database user
     WMS_DBPASSWORD Override database password
     WMS_DBHOST     Override database host
     WMS_DBPORT     Override database port
-  
+
   For peer authentication (local connections), leave DB_USER, DB_HOST, and
   DB_PORT empty or unset in etc/properties.sh. The script will use the current
   system user.
@@ -204,14 +204,14 @@ validate_prerequisites() {
 # Function to validate database schema using verifySchema.sql
 validate_database_schema() {
  print_status "${BLUE}" "🔍 Validating database schema compatibility..."
- 
+
  # Check if verify schema SQL file exists
  if [[ ! -f "${WMS_VERIFY_SCHEMA_SQL}" ]]; then
   print_status "${YELLOW}" "⚠️  Schema verification script not found: ${WMS_VERIFY_SCHEMA_SQL}"
   print_status "${YELLOW}" "   Skipping schema validation (not critical for installation)"
   return 0
  fi
- 
+
  # Build psql command
  # Use peer authentication if no host/user specified, otherwise use explicit user
  # Note: If host is "localhost" or empty, use peer auth (don't specify -h)
@@ -238,14 +238,14 @@ validate_database_schema() {
   fi
   # Don't specify port for local peer auth connections
  fi
- 
+
  # Run schema verification with ON_ERROR_STOP to ensure errors are caught
  # Redirect stderr to capture both errors and notices
  local VERIFY_OUTPUT
  local VERIFY_STATUS
  VERIFY_OUTPUT=$(eval "${PSQL_CMD} -v ON_ERROR_STOP=1 -f \"${WMS_VERIFY_SCHEMA_SQL}\" 2>&1")
  VERIFY_STATUS=$?
- 
+
  if [[ "${VERIFY_STATUS}" -ne 0 ]]; then
   print_status "${RED}" "❌ ERROR: Database schema validation failed"
   print_status "${RED}" "   The notes table schema does not match the expected schema from OSM-Notes-Ingestion"
@@ -257,7 +257,7 @@ validate_database_schema() {
   print_status "${YELLOW}" "   You can run: psql -d ${WMS_DB_NAME} -f ${WMS_VERIFY_SCHEMA_SQL}"
   exit "${ERROR_GENERAL}"
  fi
- 
+
  print_status "${GREEN}" "✅ Database schema validated successfully"
 }
 
@@ -296,15 +296,15 @@ is_wms_installed() {
 
  # Check if WMS schema exists
  local SCHEMA_EXISTS
- SCHEMA_EXISTS=$(eval "${PSQL_CMD} -t -c \"SELECT EXISTS(SELECT 1 FROM information_schema.schemata WHERE schema_name = 'wms');\"" 2> /dev/null | tr -d ' ' || echo "f")
+ SCHEMA_EXISTS=$(eval "${PSQL_CMD} -t -A -c \"SELECT EXISTS(SELECT 1 FROM information_schema.schemata WHERE schema_name = 'wms');\"" 2>&1 | head -1 | tr -d ' \n\r' || echo "f")
 
  if [[ "${SCHEMA_EXISTS}" != "t" ]]; then
   return 1
  fi
 
- # Check if main WMS table exists (more reliable check)
+ # Check if main WMS table exists (use pg_tables for more reliable check)
  local TABLE_EXISTS
- TABLE_EXISTS=$(eval "${PSQL_CMD} -t -c \"SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_schema = 'wms' AND table_name = 'notes_wms');\"" 2> /dev/null | tr -d ' ' || echo "f")
+ TABLE_EXISTS=$(eval "${PSQL_CMD} -t -A -c \"SELECT EXISTS(SELECT 1 FROM pg_tables WHERE schemaname = 'wms' AND tablename = 'notes_wms');\"" 2>&1 | head -1 | tr -d ' \n\r' || echo "f")
 
  if [[ "${TABLE_EXISTS}" == "t" ]]; then
   return 0
@@ -360,8 +360,9 @@ install_wms() {
   # Don't specify port for local peer auth connections
  fi
 
- # Execute installation SQL
- if eval "${PSQL_CMD} -f \"${WMS_PREPARE_SQL}\""; then
+ # Execute installation SQL with error handling
+ # Use ON_ERROR_STOP to ensure errors are caught
+ if eval "${PSQL_CMD} -v ON_ERROR_STOP=1 -f \"${WMS_PREPARE_SQL}\""; then
   print_status "${GREEN}" "✅ WMS installation completed successfully"
   show_installation_summary
  else
@@ -429,27 +430,37 @@ show_status() {
  if is_wms_installed; then
   print_status "${GREEN}" "✅ WMS is installed"
 
-  # Build psql command
+  # Build psql command using the same logic as is_wms_installed()
   # Use peer authentication if no host/user specified, otherwise use explicit user
+  # Note: If host is "localhost" or empty, use peer auth (don't specify -h)
+  # When using peer auth, PostgreSQL uses the current system user
   local PSQL_CMD="psql -d \"${WMS_DB_NAME}\""
-  if [[ -n "${WMS_DB_HOST}" ]] || [[ -n "${WMS_DB_USER}" ]]; then
-   # Remote connection or explicit user - need to specify user
-   if [[ -n "${WMS_DB_HOST}" ]]; then
-    PSQL_CMD="psql -h \"${WMS_DB_HOST}\" -d \"${WMS_DB_NAME}\""
-   else
-    PSQL_CMD="psql -d \"${WMS_DB_NAME}\""
-   fi
+  # Only add -h if host is set and is NOT localhost (for remote connections)
+  if [[ -n "${WMS_DB_HOST}" ]] && [[ "${WMS_DB_HOST}" != "localhost" ]]; then
+   # Remote connection - need to specify host
+   PSQL_CMD="psql -h \"${WMS_DB_HOST}\" -d \"${WMS_DB_NAME}\""
+   # For remote connections, also need to specify user if provided
    if [[ -n "${WMS_DB_USER}" ]]; then
     PSQL_CMD="${PSQL_CMD} -U \"${WMS_DB_USER}\""
    fi
-  fi
-  if [[ -n "${WMS_DB_PORT}" ]]; then
-   PSQL_CMD="${PSQL_CMD} -p \"${WMS_DB_PORT}\""
+   # Only specify port for remote connections
+   if [[ -n "${WMS_DB_PORT}" ]]; then
+    PSQL_CMD="${PSQL_CMD} -p \"${WMS_DB_PORT}\""
+   fi
+  else
+   # Local connection (localhost or empty) - use peer authentication
+   # Only specify user if explicitly provided AND different from system user
+   # For peer auth, PostgreSQL uses the current system user automatically
+   if [[ -n "${WMS_DB_USER}" ]] && [[ "${WMS_DB_USER}" != "$(whoami)" ]]; then
+    PSQL_CMD="${PSQL_CMD} -U \"${WMS_DB_USER}\""
+   fi
+   # Don't specify port for local peer auth connections
   fi
 
   # Show basic statistics (check if table exists first)
+  # Use pg_tables for more reliable check, same as is_wms_installed()
   local TABLE_EXISTS
-  TABLE_EXISTS=$(eval "${PSQL_CMD} -t -c \"SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_schema = 'wms' AND table_name = 'notes_wms');\"" 2> /dev/null | tr -d ' ' || echo "f")
+  TABLE_EXISTS=$(eval "${PSQL_CMD} -t -A -c \"SELECT EXISTS(SELECT 1 FROM pg_tables WHERE schemaname = 'wms' AND tablename = 'notes_wms');\"" 2>&1 | head -1 | tr -d ' \n\r' || echo "f")
 
   if [[ "${TABLE_EXISTS}" == "t" ]]; then
    local NOTE_COUNT

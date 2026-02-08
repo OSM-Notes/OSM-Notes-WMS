@@ -28,33 +28,33 @@ DECLARE
 BEGIN
   -- Check for note_id or id column
   SELECT EXISTS (
-    SELECT 1 FROM information_schema.columns 
+    SELECT 1 FROM information_schema.columns
     WHERE table_name = 'notes' AND column_name = 'note_id'
   ) INTO has_note_id;
-  
+
   SELECT EXISTS (
-    SELECT 1 FROM information_schema.columns 
+    SELECT 1 FROM information_schema.columns
     WHERE table_name = 'notes' AND column_name = 'id'
   ) INTO has_id;
-  
+
   -- Require either note_id or id
   IF NOT has_note_id AND NOT has_id THEN
     RAISE EXCEPTION 'Required column (note_id or id) not found in notes table. The notes table schema must match the one defined by OSM-Notes-Ingestion.';
   END IF;
-  
+
   -- Check for other required columns
   IF NOT EXISTS (
-    SELECT 1 FROM information_schema.columns 
-    WHERE table_name = 'notes' 
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'notes'
     AND column_name IN ('created_at', 'closed_at', 'longitude', 'latitude')
   ) THEN
     RAISE EXCEPTION 'Required columns (created_at, closed_at, longitude, latitude) not found in notes table. The notes table schema must match the one defined by OSM-Notes-Ingestion.';
   END IF;
-  
+
   -- Check if id_country exists (optional, but recommended for country-based styling)
   IF NOT EXISTS (
-    SELECT 1 FROM information_schema.columns 
-    WHERE table_name = 'notes' 
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'notes'
     AND column_name = 'id_country'
   ) THEN
     RAISE WARNING 'Column id_country not found in notes table. Country-based styling will not work. Consider running country assignment process.';
@@ -77,19 +77,34 @@ DECLARE
   use_note_id BOOLEAN;
   has_id_country BOOLEAN;
   sql_text TEXT;
+  table_created BOOLEAN;
+  notes_count INTEGER;
 BEGIN
   -- Check if note_id column exists
   SELECT EXISTS (
-    SELECT 1 FROM information_schema.columns 
+    SELECT 1 FROM information_schema.columns
     WHERE table_name = 'notes' AND column_name = 'note_id'
   ) INTO use_note_id;
-  
+
   -- Check if id_country column exists
   SELECT EXISTS (
-    SELECT 1 FROM information_schema.columns 
+    SELECT 1 FROM information_schema.columns
     WHERE table_name = 'notes' AND column_name = 'id_country'
   ) INTO has_id_country;
-  
+
+  -- Check how many notes have valid coordinates
+  IF use_note_id THEN
+    SELECT COUNT(*) INTO notes_count
+    FROM notes
+    WHERE longitude IS NOT NULL AND latitude IS NOT NULL;
+  ELSE
+    SELECT COUNT(*) INTO notes_count
+    FROM notes
+    WHERE longitude IS NOT NULL AND latitude IS NOT NULL;
+  END IF;
+
+  RAISE NOTICE 'Creating wms.notes_wms table with % notes that have valid coordinates', notes_count;
+
   -- Build SQL dynamically based on which columns exist
   IF use_note_id THEN
     IF has_id_country THEN
@@ -100,7 +115,7 @@ BEGIN
           extract(year from created_at) AS year_created_at,
           extract (year from closed_at) AS year_closed_at,
           id_country,
-          CASE 
+          CASE
             WHEN id_country IS NOT NULL AND id_country > 0 THEN id_country % 12
             ELSE NULL
           END AS country_shape_mod,
@@ -131,7 +146,7 @@ BEGIN
           extract(year from created_at) AS year_created_at,
           extract (year from closed_at) AS year_closed_at,
           id_country,
-          CASE 
+          CASE
             WHEN id_country IS NOT NULL AND id_country > 0 THEN id_country % 12
             ELSE NULL
           END AS country_shape_mod,
@@ -154,8 +169,37 @@ BEGIN
       ';
     END IF;
   END IF;
-  
-  EXECUTE sql_text;
+
+  -- Execute the CREATE TABLE statement
+  RAISE NOTICE 'Executing CREATE TABLE statement...';
+  BEGIN
+    EXECUTE sql_text;
+    RAISE NOTICE 'CREATE TABLE statement executed successfully';
+  EXCEPTION
+    WHEN OTHERS THEN
+      RAISE EXCEPTION 'Failed to create wms.notes_wms table: %', SQLERRM;
+  END;
+
+  -- Verify that the table was created successfully
+  -- Use pg_tables for more reliable checking
+  SELECT EXISTS (
+    SELECT 1 FROM pg_tables
+    WHERE schemaname = 'wms' AND tablename = 'notes_wms'
+  ) INTO table_created;
+
+  IF NOT table_created THEN
+    -- Also check information_schema as fallback
+    SELECT EXISTS (
+      SELECT 1 FROM information_schema.tables
+      WHERE table_schema = 'wms' AND table_name = 'notes_wms'
+    ) INTO table_created;
+
+    IF NOT table_created THEN
+      RAISE EXCEPTION 'Table wms.notes_wms was not created successfully. Check for errors in the CREATE TABLE statement.';
+    END IF;
+  END IF;
+
+  RAISE NOTICE 'Table wms.notes_wms verified successfully';
 END $$;
 COMMENT ON TABLE wms.notes_wms IS
   'Locations of the notes and its opening and closing year';
@@ -179,17 +223,17 @@ CREATE INDEX IF NOT EXISTS notes_closed ON wms.notes_wms (year_closed_at);
 COMMENT ON INDEX wms.notes_closed IS 'Queries based on closed year';
 
 -- Index for country-based queries
-CREATE INDEX IF NOT EXISTS notes_wms_country_idx 
+CREATE INDEX IF NOT EXISTS notes_wms_country_idx
   ON wms.notes_wms (id_country)
   WHERE id_country IS NOT NULL;
-COMMENT ON INDEX wms.notes_wms_country_idx IS 
+COMMENT ON INDEX wms.notes_wms_country_idx IS
   'Index for country-based queries';
 
 -- Index for shape-based queries (for SLD filtering)
-CREATE INDEX IF NOT EXISTS notes_wms_shape_mod_idx 
+CREATE INDEX IF NOT EXISTS notes_wms_shape_mod_idx
   ON wms.notes_wms (country_shape_mod)
   WHERE country_shape_mod IS NOT NULL;
-COMMENT ON INDEX wms.notes_wms_shape_mod_idx IS 
+COMMENT ON INDEX wms.notes_wms_shape_mod_idx IS
   'Index for shape-based queries (country_shape_mod)';
 
 -- Add spatial index for better performance
@@ -212,7 +256,7 @@ CREATE OR REPLACE FUNCTION wms.insert_new_notes()
     ELSE
       note_id_value := NEW.id;
     END IF;
-    
+
     INSERT INTO wms.notes_wms
      VALUES
      (
@@ -220,7 +264,7 @@ CREATE OR REPLACE FUNCTION wms.insert_new_notes()
       EXTRACT(YEAR FROM NEW.created_at),
       EXTRACT(YEAR FROM NEW.closed_at),
       COALESCE(NEW.id_country, NULL),
-      CASE 
+      CASE
         WHEN NEW.id_country IS NOT NULL AND NEW.id_country > 0 THEN NEW.id_country % 6
         ELSE NULL
       END,
@@ -232,7 +276,7 @@ CREATE OR REPLACE FUNCTION wms.insert_new_notes()
  END;
  $$ LANGUAGE plpgsql
  ;
-COMMENT ON FUNCTION wms.insert_new_notes IS 
+COMMENT ON FUNCTION wms.insert_new_notes IS
   'Insert new notes for the WMS including country information';
 
 -- Function for trigger when updating notes. This applies for 2 cases:
@@ -253,12 +297,12 @@ CREATE OR REPLACE FUNCTION wms.update_notes()
   ELSE
     note_id_value := NEW.id;
   END IF;
-  
+
   UPDATE wms.notes_wms
-   SET 
+   SET
      year_closed_at = EXTRACT(YEAR FROM NEW.closed_at),
      id_country = COALESCE(NEW.id_country, NULL),
-     country_shape_mod = CASE 
+     country_shape_mod = CASE
        WHEN NEW.id_country IS NOT NULL AND NEW.id_country > 0 THEN NEW.id_country % 6
        ELSE NULL
      END
@@ -305,18 +349,18 @@ DECLARE
   has_geom BOOLEAN;
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM information_schema.tables 
+    SELECT 1 FROM information_schema.tables
     WHERE table_name = 'countries'
   ) THEN
     RAISE EXCEPTION 'Table countries does not exist. Please run processPlanet or processAPI first to create country data.';
   END IF;
-  
+
   -- Check if geom column exists
   SELECT EXISTS (
-    SELECT 1 FROM information_schema.columns 
+    SELECT 1 FROM information_schema.columns
     WHERE table_name = 'countries' AND column_name = 'geom'
   ) INTO has_geom;
-  
+
   IF NOT has_geom THEN
     RAISE WARNING 'Column geom not found in countries table. Disputed areas view will not be created. Please run processPlanet or processAPI to populate countries with geometry data.';
   END IF;
@@ -582,7 +626,7 @@ COMMENT ON COLUMN wms.disputed_and_unclaimed_areas.zone_type IS
 --       configuration (single schema for all layers)
 
 CREATE OR REPLACE VIEW public.notes_open_view AS
-SELECT 
+SELECT
   note_id,
   year_created_at,
   year_closed_at,
@@ -606,7 +650,7 @@ COMMENT ON COLUMN public.notes_open_view.country_shape_mod IS
   'Modulo 12 of id_country for shape assignment (0-11, NULL if no country)';
 
 CREATE OR REPLACE VIEW public.notes_closed_view AS
-SELECT 
+SELECT
   note_id,
   year_created_at,
   year_closed_at,
