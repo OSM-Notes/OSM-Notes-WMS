@@ -9,18 +9,18 @@
 # 255) General error
 #
 # Author: Andres Gomez (AngocA)
-# Version: 2025-12-08
+# Version: 2026-03-28
 
 set -euo pipefail
 
 # Load common functions
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+export SCRIPT_BASE_DIRECTORY="${PROJECT_ROOT}"
 
 # Set required variables for functionsProcess.sh
 # SCRIPT_BASE_DIRECTORY must be set BEFORE loading functionsProcess.sh
 # so it can find commonFunctions.sh correctly
-export SCRIPT_BASE_DIRECTORY="${PROJECT_ROOT}"
 export BASENAME="geoserverConfig"
 export TMP_DIR="/tmp"
 export LOG_LEVEL="INFO"
@@ -44,6 +44,12 @@ fi
 if [[ -f "${PROJECT_ROOT}/etc/wms.properties.sh_local" ]]; then
  source "${PROJECT_ROOT}/etc/wms.properties.sh_local"
 fi
+
+if [[ -f "${PROJECT_ROOT}/lib/osm-common/commonFunctions.sh" ]]; then
+ # shellcheck source=../../lib/osm-common/commonFunctions.sh
+ source "${PROJECT_ROOT}/lib/osm-common/commonFunctions.sh"
+fi
+export SCHEMA_CONSUMER="${SCHEMA_CONSUMER:-wms}"
 
 # Load common functions (provides __validate_input_file, etc.)
 # Note: We don't use __retry_geoserver_api from functionsProcess.sh, we implement

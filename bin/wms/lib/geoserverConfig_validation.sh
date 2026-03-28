@@ -3,7 +3,7 @@
 # Prerequisites validation for GeoServer configuration
 #
 # Author: Andres Gomez (AngocA)
-# Version: 2025-12-08
+# Version: 2026-03-28
 
 # Function to validate prerequisites
 validate_prerequisites() {
@@ -138,6 +138,15 @@ validate_prerequisites() {
    fi
   else
    print_status "${GREEN}" "✅ PostgreSQL connection validated"
+   if declare -f __assert_schema_compatible > /dev/null 2>&1; then
+    export SCHEMA_CONSUMER="${SCHEMA_CONSUMER:-wms}"
+    export PGHOST="${DBHOST:-}"
+    export PGPORT="${DBPORT:-}"
+    export PGUSER="${DBUSER:-}"
+    export PGPASSWORD="${DBPASSWORD}"
+    __start_logger
+    __assert_schema_compatible
+   fi
    unset PGPASSWORD 2> /dev/null || true
   fi
  else
@@ -164,4 +173,3 @@ validate_prerequisites() {
 
  print_status "${GREEN}" "✅ Prerequisites validated"
 }
-

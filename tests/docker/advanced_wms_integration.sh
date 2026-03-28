@@ -3,7 +3,7 @@
 # Comprehensive tests for WMS manager functionality
 #
 # Author: Andres Gomez (AngocA)
-# Version: 2025-07-27
+# Version: 2026-03-28
 
 set -euo pipefail
 
@@ -97,6 +97,18 @@ create_test_database() {
     (5, '2023-05-01 07:00:00', '2023-05-10 06:00:00', 139.6917, 35.6895)
     ON CONFLICT (note_id) DO NOTHING;
   " 2> /dev/null || true
+
+ psql -h "$TEST_DBHOST" -U "$TEST_DBUSER" -d "$TEST_DBNAME" -v ON_ERROR_STOP=1 -c "
+CREATE TABLE IF NOT EXISTS schema_version (
+ component VARCHAR(64) PRIMARY KEY,
+ version VARCHAR(16) NOT NULL,
+ updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+INSERT INTO schema_version (component, version) VALUES ('core', '1.1.0')
+ON CONFLICT (component) DO UPDATE SET
+ version = EXCLUDED.version,
+ updated_at = CURRENT_TIMESTAMP;
+" 2> /dev/null || true
 
  print_status "$GREEN" "✅ Test database created successfully"
 }

@@ -1,7 +1,7 @@
 # CI/CD Pipeline - OSM-Notes-WMS
 # Unified workflow structure for Bash/SQL projects
 # Author: Andres Gomez (AngocA)
-# Version: 2026-01-27
+# Version: 2026-03-28
 
 name: CI/CD Pipeline
 
@@ -96,6 +96,11 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Validate schema contracts (expected SemVer ranges)
+        run: |
+          chmod +x tests/ci/validate_schema_contracts.sh
+          tests/ci/validate_schema_contracts.sh
+
       - name: Check for common issues
         run: |
           echo "Checking for common code quality issues..."
@@ -187,6 +192,17 @@ jobs:
         run: |
           PGPASSWORD=testpass createdb -h localhost -U testuser osm_notes_wms_test || echo "Database may already exist"
           PGPASSWORD=testpass psql -h localhost -U testuser -d osm_notes_wms_test -c "CREATE EXTENSION IF NOT EXISTS postgis;"
+          PGPASSWORD=testpass psql -h localhost -U testuser -d osm_notes_wms_test -v ON_ERROR_STOP=1 -c "
+          CREATE TABLE IF NOT EXISTS schema_version (
+           component VARCHAR(64) PRIMARY KEY,
+           version VARCHAR(16) NOT NULL,
+           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          );
+          INSERT INTO schema_version (component, version) VALUES ('core', '1.1.0')
+          ON CONFLICT (component) DO UPDATE SET
+           version = EXCLUDED.version,
+           updated_at = CURRENT_TIMESTAMP;
+          "
           echo "Test database created and PostGIS extension enabled"
 
       - name: Make scripts executable

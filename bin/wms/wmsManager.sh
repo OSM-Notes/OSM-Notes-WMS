@@ -9,13 +9,14 @@
 # 255) General error
 #
 # Author: Andres Gomez (AngocA)
-# Version: 2025-12-29
+# Version: 2026-03-28
 
 set -euo pipefail
 
 # Load common functions
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+export SCRIPT_BASE_DIRECTORY="${PROJECT_ROOT}"
 
 # Set required variables for functionsProcess.sh
 export BASENAME="wmsManager"
@@ -31,10 +32,11 @@ if [[ -f "${PROJECT_ROOT}/etc/properties.sh" ]]; then
  source "${PROJECT_ROOT}/etc/properties.sh"
 fi
 
-# Load common functions to get error codes
+# Load common functions to get error codes and schema contract helpers
 if [[ -f "${PROJECT_ROOT}/lib/osm-common/commonFunctions.sh" ]]; then
  source "${PROJECT_ROOT}/lib/osm-common/commonFunctions.sh"
 fi
+export SCHEMA_CONSUMER="${SCHEMA_CONSUMER:-wms}"
 
 # Load WMS specific properties only if not in test mode (for WMS-specific config, not DB connection)
 if [[ -z "${TEST_DBNAME:-}" ]] && [[ -f "${PROJECT_ROOT}/etc/wms.properties.sh" ]]; then
@@ -60,6 +62,34 @@ WMS_DB_PORT="${WMS_DBPORT:-${DB_PORT:-${TEST_DBPORT:-}}}"
 
 # Export for psql commands
 export WMS_DB_NAME WMS_DB_USER WMS_DB_PASSWORD WMS_DB_HOST WMS_DB_PORT
+
+# Validates schema_version (core) against etc/schema_compatibility.sh for consumer wms.
+# Parameters: none.
+# Returns: none (exits on mismatch).
+function __wms_assert_schema_contract {
+ if ! declare -f __assert_schema_compatible > /dev/null 2>&1; then
+  return 0
+ fi
+ export SCHEMA_CONSUMER="${SCHEMA_CONSUMER:-wms}"
+ export DBNAME="${WMS_DB_NAME}"
+ if [[ -n "${WMS_DB_HOST}" ]] && [[ "${WMS_DB_HOST}" != "localhost" ]]; then
+  export PGHOST="${WMS_DB_HOST}"
+ else
+  unset PGHOST 2> /dev/null || true
+ fi
+ if [[ -n "${WMS_DB_PORT}" ]]; then
+  export PGPORT="${WMS_DB_PORT}"
+ else
+  unset PGPORT 2> /dev/null || true
+ fi
+ if [[ -n "${WMS_DB_USER}" ]]; then
+  export PGUSER="${WMS_DB_USER}"
+ else
+  unset PGUSER 2> /dev/null || true
+ fi
+ __start_logger
+ __assert_schema_compatible
+}
 # Only set PGPASSWORD if password is provided (for peer auth, don't set it)
 if [[ -n "${WMS_DB_PASSWORD}" ]]; then
  export PGPASSWORD="${WMS_DB_PASSWORD}"
@@ -197,6 +227,8 @@ validate_prerequisites() {
   print_status "${RED}" "❌ ERROR: PostGIS extension is not installed or not accessible"
   exit "${ERROR_MISSING_LIBRARY}"
  fi
+
+ __wms_assert_schema_contract
 
  print_status "${GREEN}" "✅ Prerequisites validated"
 }

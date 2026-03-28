@@ -131,6 +131,17 @@ if command -v pg_isready > /dev/null 2>&1 && pg_isready -h localhost -U testuser
     print_message "${BLUE}" "Setting up test database..."
     PGPASSWORD=testpass createdb -h localhost -U testuser osm_notes_wms_test 2>/dev/null || true
     PGPASSWORD=testpass psql -h localhost -U testuser -d osm_notes_wms_test -c "CREATE EXTENSION IF NOT EXISTS postgis;" 2>/dev/null || true
+    PGPASSWORD=testpass psql -h localhost -U testuser -d osm_notes_wms_test -v ON_ERROR_STOP=1 -c "
+CREATE TABLE IF NOT EXISTS schema_version (
+ component VARCHAR(64) PRIMARY KEY,
+ version VARCHAR(16) NOT NULL,
+ updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+INSERT INTO schema_version (component, version) VALUES ('core', '1.1.0')
+ON CONFLICT (component) DO UPDATE SET
+ version = EXCLUDED.version,
+ updated_at = CURRENT_TIMESTAMP;
+" 2>/dev/null || true
 
     # Make scripts executable
     find bin -type f -name "*.sh" -exec chmod +x {} \; 2>/dev/null || true

@@ -3,7 +3,7 @@
 # Tests for the WMS manager script with actual database operations
 #
 # Author: Andres Gomez (AngocA)
-# Version: 2025-11-10
+# Version: 2026-03-28
 setup() {
  # Load test helper functions
  load "${BATS_TEST_DIRNAME}/../test_helper.bash"
@@ -23,6 +23,7 @@ setup() {
 #!/bin/bash
 echo "Mock psql called with: $*" >&2
 case "$*" in
+ *"schema_version"*) echo "1.1.0";;
  *"schema_name = 'wms'"*) echo "t";;
  *"COUNT(*) FROM wms.notes_wms"*) echo "3";;
  *"COUNT(*) FROM notes"*) echo "2";;
@@ -99,6 +100,17 @@ create_wms_test_database() {
     (3, '2023-03-01 09:00:00', NULL, 2.3522, 48.8566)
     ON CONFLICT (note_id) DO NOTHING;
   " 2> /dev/null || true
+ psql -d "${TEST_DBNAME}" -v ON_ERROR_STOP=1 -c "
+CREATE TABLE IF NOT EXISTS schema_version (
+ component VARCHAR(64) PRIMARY KEY,
+ version VARCHAR(16) NOT NULL,
+ updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+INSERT INTO schema_version (component, version) VALUES ('core', '1.1.0')
+ON CONFLICT (component) DO UPDATE SET
+ version = EXCLUDED.version,
+ updated_at = CURRENT_TIMESTAMP;
+" 2> /dev/null || true
 }
 # Function to drop WMS test database
 drop_wms_test_database() {

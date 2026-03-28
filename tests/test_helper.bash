@@ -3,7 +3,26 @@
 # Common helper functions used across integration tests
 #
 # Author: Andres Gomez (AngocA)
-# Version: 2025-12-08
+# Version: 2026-03-28
+
+# Ensures schema_version (core) exists for WMS / schema contract checks in tests.
+# Parameters: none.
+_ensure_schema_version_contract_for_tests() {
+  if [[ "${MOCK_MODE:-0}" == "1" ]]; then
+    return 0
+  fi
+  psql -d "${TEST_DBNAME}" -v ON_ERROR_STOP=1 -c "
+CREATE TABLE IF NOT EXISTS schema_version (
+ component VARCHAR(64) PRIMARY KEY,
+ version VARCHAR(16) NOT NULL,
+ updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+INSERT INTO schema_version (component, version) VALUES ('core', '1.1.0')
+ON CONFLICT (component) DO UPDATE SET
+ version = EXCLUDED.version,
+ updated_at = CURRENT_TIMESTAMP;
+" 2> /dev/null || true
+}
 
 # Function to create WMS test database with PostGIS
 # Uses processPlanetNotes.sh --base from OSM-Notes-Ingestion project to create base tables
@@ -90,6 +109,7 @@ create_wms_test_database() {
           " 2> /dev/null || true
         fi
       fi
+      _ensure_schema_version_contract_for_tests
     else
       echo "Warning: processPlanetNotes.sh --base failed, falling back to manual table creation"
       echo "Check /tmp/processPlanetNotes_test.log for details"
@@ -114,6 +134,7 @@ create_wms_test_database() {
       " 2> /dev/null || true
     fi
   fi
+  _ensure_schema_version_contract_for_tests
 }
 
 # Helper function to create basic tables manually (fallback)
@@ -141,6 +162,7 @@ _create_basic_tables_manually() {
     (3, '2023-03-01 09:00:00', NULL, 2.3522, 48.8566)
     ON CONFLICT (note_id) DO NOTHING;
   " 2> /dev/null || true
+  _ensure_schema_version_contract_for_tests
 }
 
 # Function to drop WMS test database
