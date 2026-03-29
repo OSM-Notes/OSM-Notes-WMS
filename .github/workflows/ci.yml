@@ -164,7 +164,7 @@ jobs:
       PGPASSWORD: testpass
       DBNAME: osm_notes_wms_test
       DBUSER: testuser
-      DBPASSWORD: testpass
+      WMS_DBPASSWORD: testpass
       DBHOST: localhost
       DBPORT: 5432
       MOCK_MODE: 0

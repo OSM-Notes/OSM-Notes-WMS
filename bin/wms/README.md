@@ -7,47 +7,25 @@ project.
 
 ### WMS Properties (`etc/wms.properties.sh`)
 
-The WMS system uses a dedicated properties file for easy customization.
-
-**Important**: This file is not tracked in Git for security reasons. You must create it from the
-example file:
+Create the file from the **minimal** example (required for `wmsManager.sh` / `geoserverConfig.sh`):
 
 ```bash
-# Copy the example file
 cp etc/wms.properties.sh.example etc/wms.properties.sh
-
-# Set restrictive permissions (security best practice)
 chmod 600 etc/wms.properties.sh
-
-# Edit with your credentials and settings
 vi etc/wms.properties.sh
-
-# Load WMS properties
-source etc/wms.properties.sh
-
-# Or set custom values via environment variables
-export WMS_DBNAME="my_database"
-export GEOSERVER_URL="https://my-geoserver.com/geoserver"
+source etc/wms.properties.sh   # optional check
 ```
 
-**Security Best Practices:**
+**Optional:** `etc/wms.properties.extras.sh.example` → `wms.properties.extras.sh` for variables
+not used by `bin/wms` (metadata, placeholders). Uncomment the `source` block in `wms.properties.sh`.
+Details: `etc/README.md`.
 
-- Never commit `wms.properties.sh` to Git (it's in .gitignore)
-- Use `chmod 600` to restrict file permissions
-- Edit credentials locally on each server
-- Consider using `wms.properties.sh_local` for additional secrets (overrides main file)
-- Set strong passwords for production
+**Security:** do not commit local configs; use `chmod 600`; optional `wms.properties.sh_local` for
+secrets (loaded last by `geoserverConfig.sh`).
 
-**Key Configuration Sections:**
+**Minimal file covers:** database, GeoServer REST, layer titles/bbox, SLD paths.
 
-- **Database Configuration**: Connection settings for PostgreSQL
-- **GeoServer Configuration**: GeoServer access and workspace settings
-- **WMS Service Configuration**: Service metadata and layer settings
-- **Style Configuration**: SLD style file and fallback options
-- **Performance Configuration**: Connection pools and caching
-- **Security Configuration**: Authentication and CORS settings
-- **Logging Configuration**: Log levels and file management
-- **Development Configuration**: Debug and development mode settings
+**Environment overrides:** e.g. `export WMS_DBNAME="my_database"` `export GEOSERVER_URL="https://..."`
 
 ## Scripts
 
@@ -136,15 +114,18 @@ GeoServer connects to PostgreSQL via TCP/IP and cannot use peer authentication.
 
 ```bash
 # Database user for GeoServer (read-only permissions)
-WMS_DBUSER="geoserver"  # or use GEOSERVER_DBUSER
-WMS_DBPASSWORD="your_password_here"  # REQUIRED - GeoServer needs password
+GEOSERVER_DBUSER="geoserver"
+# Password for that user (use this when it differs from the install/admin password)
+GEOSERVER_DBPASSWORD="geoserver_db_password"
+# If GEOSERVER_DBPASSWORD is unset, geoserverConfig.sh uses WMS_DBPASSWORD instead
 WMS_DBHOST="localhost"  # or remote host if GeoServer is on different server
 WMS_DBPORT="5432"  # PostgreSQL port
 ```
 
 **Note**: Unlike `wmsManager.sh` which can use peer authentication, `geoserverConfig.sh` always
-requires a password because it configures GeoServer's datastore, and GeoServer runs as a Java
-process that cannot use peer authentication.
+needs a database password for the GeoServer datastore user because GeoServer runs as a Java
+process that cannot use peer authentication. Set `GEOSERVER_DBPASSWORD` when the GeoServer DB user
+has a different password than `WMS_DBPASSWORD` (install user).
 
 **Database Permissions:**
 

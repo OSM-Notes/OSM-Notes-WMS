@@ -206,7 +206,8 @@ teardown() {
 # Test that configuration files exist
 @test "geoserverConfig.sh configuration files should exist" {
  local CONFIG_FILES=(
-  "etc/wms.properties.sh.example"  # Example file should always exist
+  "etc/wms.properties.sh.example"
+  "etc/wms.properties.extras.sh.example"
   "bin/wms/wmsManager.sh"
  )
 

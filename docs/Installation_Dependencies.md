@@ -307,6 +307,7 @@ cp etc/wms.properties.sh.example etc/wms.properties.sh
 
 # Edit configuration
 nano etc/wms.properties.sh
+# Optional extended variables: etc/wms.properties.extras.sh.example -> etc/wms.properties.extras.sh (see etc/README.md)
 ```
 
 ### 3. Source Configuration

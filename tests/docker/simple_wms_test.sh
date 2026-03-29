@@ -33,7 +33,7 @@ print_status "$BLUE" "🚀 Starting Simple WMS Test..."
 # Set environment variables
 export DBNAME="$TEST_DBNAME"
 export DBUSER="$TEST_DBUSER"
-export DBPASSWORD="$TEST_DBPASSWORD"
+export WMS_DBPASSWORD="$TEST_DBPASSWORD"
 export DBHOST="$TEST_DBHOST"
 export DBPORT="$TEST_DBPORT"
 export PGPASSWORD="$TEST_DBPASSWORD"

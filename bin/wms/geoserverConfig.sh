@@ -113,7 +113,8 @@ fi
 DBNAME="${WMS_DBNAME:-${DBNAME:-notes}}"
 # Use GEOSERVER_DBUSER if set, otherwise WMS_DBUSER, otherwise default to geoserver
 DBUSER="${GEOSERVER_DBUSER:-${WMS_DBUSER:-geoserver}}"
-DBPASSWORD="${WMS_DBPASSWORD:-${DB_PASSWORD:-}}"
+# PostgreSQL password for GeoServer datastore: GEOSERVER_DBPASSWORD, else WMS_DBPASSWORD
+DBPASSWORD="${GEOSERVER_DBPASSWORD:-${WMS_DBPASSWORD:-}}"
 # GeoServer cannot use peer authentication, so default to localhost:5432 if not set
 DBHOST="${WMS_DBHOST:-${DB_HOST:-localhost}}"
 DBPORT="${WMS_DBPORT:-${DB_PORT:-5432}}"
@@ -204,7 +205,8 @@ ENVIRONMENT VARIABLES:
   GEOSERVER_PASSWORD  GeoServer admin password
   DBNAME              Database name (default: osm_notes)
   DBUSER              Database user (default: postgres)
-  DBPASSWORD          Database password
+  GEOSERVER_DBPASSWORD  PostgreSQL password for GEOSERVER_DBUSER (etc/wms.properties.sh)
+  WMS_DBPASSWORD        Used only if GEOSERVER_DBPASSWORD is empty (same password for both roles)
   DBHOST              Database host (default: localhost)
   DBPORT              Database port (default: 5432)
 
@@ -370,7 +372,7 @@ validate_prerequisites() {
  else
   print_status "${YELLOW}" "⚠️  Skipping PostgreSQL validation (no password provided)"
   print_status "${YELLOW}" "   GeoServer will validate the connection when creating the datastore"
-  print_status "${YELLOW}" "   💡 To enable validation, set WMS_DBPASSWORD or DBPASSWORD environment variable"
+  print_status "${YELLOW}" "   💡 To enable validation, set GEOSERVER_DBPASSWORD or WMS_DBPASSWORD in etc/wms.properties.sh"
  fi
 
  # Check if WMS schema exists (only if we can connect to PostgreSQL)

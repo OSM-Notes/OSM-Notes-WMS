@@ -133,7 +133,7 @@ run_wms_test() {
  # Set environment variables
  export DBNAME="$TEST_DBNAME"
  export DBUSER="$TEST_DBUSER"
- export DBPASSWORD="$TEST_DBPASSWORD"
+ export WMS_DBPASSWORD="$TEST_DBPASSWORD"
  export DBHOST="$TEST_DBHOST"
  export DBPORT="$TEST_DBPORT"
  export PGPASSWORD="$TEST_DBPASSWORD"
@@ -218,7 +218,7 @@ test_performance() {
  # Set environment variables
  export DBNAME="$TEST_DBNAME"
  export DBUSER="$TEST_DBUSER"
- export DBPASSWORD="$TEST_DBPASSWORD"
+ export WMS_DBPASSWORD="$TEST_DBPASSWORD"
  export DBHOST="$TEST_DBHOST"
  export DBPORT="$TEST_DBPORT"
  export PGPASSWORD="$TEST_DBPASSWORD"
@@ -271,7 +271,7 @@ test_error_handling() {
  # Set environment variables
  export DBNAME="$TEST_DBNAME"
  export DBUSER="$TEST_DBUSER"
- export DBPASSWORD="$TEST_DBPASSWORD"
+ export WMS_DBPASSWORD="$TEST_DBPASSWORD"
  export DBHOST="$TEST_DBHOST"
  export DBPORT="$TEST_DBPORT"
  export PGPASSWORD="$TEST_DBPASSWORD"
@@ -305,7 +305,7 @@ test_concurrent_operations() {
  # Set environment variables
  export DBNAME="$TEST_DBNAME"
  export DBUSER="$TEST_DBUSER"
- export DBPASSWORD="$TEST_DBPASSWORD"
+ export WMS_DBPASSWORD="$TEST_DBPASSWORD"
  export DBHOST="$TEST_DBHOST"
  export DBPORT="$TEST_DBPORT"
  export PGPASSWORD="$TEST_DBPASSWORD"
@@ -356,7 +356,7 @@ main() {
  print_status "$BLUE" "🧹 Cleaning up any existing WMS installation..."
  export DBNAME="$TEST_DBNAME"
  export DBUSER="$TEST_DBUSER"
- export DBPASSWORD="$TEST_DBPASSWORD"
+ export WMS_DBPASSWORD="$TEST_DBPASSWORD"
  export DBHOST="$TEST_DBHOST"
  export DBPORT="$TEST_DBPORT"
  export PGPASSWORD="$TEST_DBPASSWORD"

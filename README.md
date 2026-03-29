@@ -333,13 +333,13 @@ See [sql/wms/README.md](./sql/wms/README.md) for complete SQL documentation.
 
 ### Configuration Entry Point
 
-- **WMS Properties**: `etc/wms.properties.sh` - Main configuration file
+- **WMS Properties**: `etc/wms.properties.sh` (from `wms.properties.sh.example`; optional `wms.properties.extras.sh`)
   ```bash
-  # Copy example and configure
   cp etc/wms.properties.sh.example etc/wms.properties.sh
   chmod 600 etc/wms.properties.sh
   vi etc/wms.properties.sh
   ```
+  See `etc/README.md` for the optional extras file.
 
 ## Prerequisites
 
@@ -604,14 +604,11 @@ OSM-Notes-WMS/
 
 ## Configuration
 
-Configuration is done via `etc/wms.properties.sh` (created from `etc/wms.properties.sh.example`):
+Configuration is done via `etc/wms.properties.sh` (from `etc/wms.properties.sh.example`):
 
-- Database connection settings
-- GeoServer access configuration
-- WMS service metadata
-- Style and layer settings
+- Database, GeoServer REST, layer metadata, styles (minimal example)
 
-See `etc/wms.properties.sh.example` for all available options.
+Optional placeholders and extended exports: `etc/wms.properties.extras.sh.example` (see `etc/README.md`).
 
 ## Maintenance
 

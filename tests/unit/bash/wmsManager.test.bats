@@ -17,7 +17,7 @@ setup() {
   # Set database environment variables for WMS tests
   export DBNAME="${TEST_DBNAME:-osm_notes_test}"
   export DB_USER="${TEST_DBUSER:-$(whoami)}"
-  export DBPASSWORD="${TEST_DBPASSWORD:-}"
+  export DB_PASSWORD="${TEST_DBPASSWORD:-}"
   export DBHOST="${TEST_DBHOST:-localhost}"
   export DBPORT="${TEST_DBPORT:-5432}"
   

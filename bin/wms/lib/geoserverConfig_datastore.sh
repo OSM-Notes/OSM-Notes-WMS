@@ -21,9 +21,9 @@ create_datastore() {
  # These credentials are stored in GeoServer's datastore configuration
  # The user should have read-only permissions (typically 'geoserver' user)
  if [[ -z "${DBPASSWORD}" ]]; then
-  print_status "${YELLOW}" "⚠️  WARNING: DBPASSWORD is not set"
+  print_status "${YELLOW}" "⚠️  WARNING: GEOSERVER_DBPASSWORD and WMS_DBPASSWORD are unset"
   print_status "${YELLOW}" "   GeoServer datastore requires a password for database connection"
-  print_status "${YELLOW}" "   Set WMS_DBPASSWORD in etc/wms.properties.sh"
+  print_status "${YELLOW}" "   Set GEOSERVER_DBPASSWORD or WMS_DBPASSWORD in etc/wms.properties.sh"
   print_status "${YELLOW}" "   GeoServer will fail to connect without a password"
  fi
  local DATASTORE_DATA="{

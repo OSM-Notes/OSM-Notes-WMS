@@ -664,8 +664,9 @@ cp etc/wms.properties.sh.example etc/wms.properties.sh
 vi etc/wms.properties.sh
 ```
 
-The example file contains default values and detailed comments. Replace the example values with your
-actual configuration.
+The minimal example contains defaults for variables used by `wmsManager.sh` and `geoserverConfig.sh`.
+Optional metadata and placeholders: `etc/wms.properties.extras.sh.example` → `etc/wms.properties.extras.sh`
+(see `etc/README.md`).
 
 #### Key Configuration Sections
 
@@ -1609,5 +1610,5 @@ export GEOSERVER_OPTS="-Xms4g -Xmx8g -XX:+UseG1GC"
 - **[bin/wms/README.md](../bin/wms/README.md)**: WMS script usage examples and documentation
 - **Script Entry Points**: `wmsManager.sh` and `geoserverConfig.sh` (see
   [bin/wms/README.md](../bin/wms/README.md))
-- **Environment Variables**: See `etc/wms.properties.sh.example` for all available configuration
+- **Environment Variables**: See `etc/wms.properties.sh.example` (minimal) and optional `etc/wms.properties.extras.sh.example`
   variables

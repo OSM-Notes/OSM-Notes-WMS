@@ -1,51 +1,49 @@
 # Configuration Directory
 
-This directory contains configuration files for the OSM-Notes-WMS project.
+Configuration for the OSM-Notes-WMS project.
 
 ## Files
 
-### `wms.properties.sh.example`
+### `wms.properties.sh.example` (minimal)
 
-Template configuration file for WMS system. This file contains all configuration options with
-default values and detailed comments.
-
-**Important**: This file is tracked in Git. Create a copy for your actual configuration:
+Variables **used by** `bin/wms/wmsManager.sh` and `bin/wms/geoserverConfig.sh`: database,
+GeoServer REST, layer metadata, bbox, SLD paths. Start here for a normal install.
 
 ```bash
-# Copy the example file
 cp etc/wms.properties.sh.example etc/wms.properties.sh
-
-# Set restrictive permissions (security best practice)
 chmod 600 etc/wms.properties.sh
-
-# Edit with your credentials and settings
 vi etc/wms.properties.sh
 ```
 
-Then edit `wms.properties.sh` with your actual settings. The file `wms.properties.sh` should not be
-committed to Git (it's in .gitignore) as it may contain sensitive information like passwords.
+### `wms.properties.extras.sh.example` (optional)
 
-**Security Notes:**
+Extra variables **not** consumed by `bin/wms/*.sh` (documentation SQL strings, service metadata,
+cache/log placeholders, etc.). Only if you need them exported for other tooling:
 
-- Never commit `wms.properties.sh` to Git (it's in .gitignore)
-- Use `chmod 600` to restrict file permissions
-- Edit credentials locally on each server
-- Consider using `wms.properties.sh_local` for additional secrets (overrides main file)
+```bash
+cp etc/wms.properties.extras.sh.example etc/wms.properties.extras.sh
+chmod 600 etc/wms.properties.extras.sh
+```
 
-### Configuration Sections
+In `wms.properties.sh`, uncomment the block that sources `etc/wms.properties.extras.sh` so
+`__export_wms_properties_extras` runs after the minimal exports.
 
-The properties file includes the following configuration sections:
+### Optional `etc/properties.sh` (manual)
 
-- **Database Configuration**: Connection settings for PostgreSQL
-- **GeoServer Configuration**: GeoServer access and workspace settings
-- **WMS Service Configuration**: Service metadata and layer settings
-- **Style Configuration**: SLD style file paths and names
-- **Performance Configuration**: Connection pools and caching
-- **Security Configuration**: Authentication and CORS settings
-- **Logging Configuration**: Log levels and file management
-- **Development Configuration**: Debug and development mode settings
+You may create `etc/properties.sh` yourself with `DBNAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`,
+`DB_PORT` if you share the same pattern as other OSM-Notes components. There is **no** tracked
+template in this repository. `wmsManager.sh` and `geoserverConfig.sh` source it when the file exists.
+`WMS_*` in `wms.properties.sh` override those defaults.
 
-## Environment Variables
+### `wms.properties.sh_local` (optional)
 
-All configuration values can be overridden using environment variables. See the example file for
-variable names and usage.
+Additional overrides loaded **last** by `geoserverConfig.sh` only. Useful for secrets on a server.
+
+## Security
+
+- Do not commit `wms.properties.sh`, `wms.properties.extras.sh`, or `properties.sh` (see `.gitignore`).
+- Use `chmod 600` on local config files.
+
+## Environment
+
+All values can still be overridden with environment variables before running scripts.
