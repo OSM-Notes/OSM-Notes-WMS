@@ -246,9 +246,18 @@ validate_prerequisites() {
  local PSQL_CMD
  PSQL_CMD="$(__wms_build_psql_cmd)"
 
- # Test database connection first
- if ! eval "${PSQL_CMD} -c \"SELECT 1;\"" &> /dev/null; then
-  print_status "${RED}" "❌ ERROR: Cannot connect to database: ${WMS_DB_NAME}@${WMS_DB_HOST:-localhost}:${WMS_DB_PORT:-5432}"
+ # Test database connection first (capture psql output on failure — real error was hidden by /dev/null)
+ local psql_conn_err
+ if ! psql_conn_err=$(eval "${PSQL_CMD} -c \"SELECT 1;\"" 2>&1); then
+  local conn_disp
+  conn_disp="$(__wms_resolve_psql_host)"
+  if [[ -n "${conn_disp}" ]]; then
+   conn_disp="${conn_disp} (TCP)"
+  else
+   conn_disp="${WMS_DB_HOST:-unix socket}"
+  fi
+  print_status "${RED}" "❌ ERROR: Cannot connect to database: ${WMS_DB_NAME}@${conn_disp}:${WMS_DB_PORT:-5432}"
+  print_status "${YELLOW}" "   ${psql_conn_err}"
   exit "${ERROR_GENERAL}"
  fi
 
