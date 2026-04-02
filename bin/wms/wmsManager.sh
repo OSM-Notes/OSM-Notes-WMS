@@ -36,6 +36,10 @@ fi
 if [[ -f "${PROJECT_ROOT}/lib/osm-common/commonFunctions.sh" ]]; then
  source "${PROJECT_ROOT}/lib/osm-common/commonFunctions.sh"
 fi
+# Fallback if commonFunctions.sh was not loaded (e.g. submodule missing on deploy)
+if [[ -z "${ERROR_MISSING_LIBRARY:-}" ]]; then declare -r ERROR_MISSING_LIBRARY=241; fi
+if [[ -z "${ERROR_INVALID_ARGUMENT:-}" ]]; then declare -r ERROR_INVALID_ARGUMENT=242; fi
+if [[ -z "${ERROR_GENERAL:-}" ]]; then declare -r ERROR_GENERAL=255; fi
 export SCHEMA_CONSUMER="${SCHEMA_CONSUMER:-wms}"
 
 # Load WMS specific properties only if not in test mode (for WMS-specific config, not DB connection)
@@ -63,6 +67,46 @@ WMS_DB_PORT="${WMS_DBPORT:-${DB_PORT:-${TEST_DBPORT:-}}}"
 # Export for psql commands
 export WMS_DB_NAME WMS_DB_USER WMS_DB_PASSWORD WMS_DB_HOST WMS_DB_PORT
 
+# Echo TCP host for psql -h, or empty to use Unix socket (peer).
+# Password + loopback (empty, localhost, 127.0.0.1) must use TCP (e.g. 127.0.0.1) so pg_hba
+# "host" rules (scram-sha-256) apply; Unix socket uses "local" rules (often peer) and ignores PGPASSWORD.
+function __wms_resolve_psql_host() {
+ if [[ -n "${WMS_DB_PASSWORD}" ]]; then
+  if [[ -z "${WMS_DB_HOST:-}" || "${WMS_DB_HOST}" == "localhost" || "${WMS_DB_HOST}" == "127.0.0.1" ]]; then
+   echo "127.0.0.1"
+   return
+  fi
+  echo "${WMS_DB_HOST}"
+  return
+ fi
+ if [[ -n "${WMS_DB_HOST:-}" && "${WMS_DB_HOST}" != "localhost" ]]; then
+  echo "${WMS_DB_HOST}"
+  return
+ fi
+ echo ""
+}
+
+# Build psql invocation string (eval'd later). Matches libpq env used for schema contract checks.
+function __wms_build_psql_cmd() {
+ local psql_host cmd
+ psql_host="$(__wms_resolve_psql_host)"
+ if [[ -n "${psql_host}" ]]; then
+  cmd="psql -h \"${psql_host}\" -d \"${WMS_DB_NAME}\""
+  if [[ -n "${WMS_DB_USER}" ]]; then
+   cmd="${cmd} -U \"${WMS_DB_USER}\""
+  fi
+  if [[ -n "${WMS_DB_PORT}" ]]; then
+   cmd="${cmd} -p \"${WMS_DB_PORT}\""
+  fi
+ else
+  cmd="psql -d \"${WMS_DB_NAME}\""
+  if [[ -n "${WMS_DB_USER}" ]] && [[ "${WMS_DB_USER}" != "$(whoami)" ]]; then
+   cmd="${cmd} -U \"${WMS_DB_USER}\""
+  fi
+ fi
+ echo "${cmd}"
+}
+
 # Validates schema_version (core) against etc/schema_compatibility.sh for consumer wms.
 # Parameters: none.
 # Returns: none (exits on mismatch).
@@ -72,8 +116,10 @@ function __wms_assert_schema_contract {
  fi
  export SCHEMA_CONSUMER="${SCHEMA_CONSUMER:-wms}"
  export DBNAME="${WMS_DB_NAME}"
- if [[ -n "${WMS_DB_HOST}" ]] && [[ "${WMS_DB_HOST}" != "localhost" ]]; then
-  export PGHOST="${WMS_DB_HOST}"
+ local __wms_pg_host
+ __wms_pg_host="$(__wms_resolve_psql_host)"
+ if [[ -n "${__wms_pg_host}" ]]; then
+  export PGHOST="${__wms_pg_host}"
  else
   unset PGHOST 2> /dev/null || true
  fi
@@ -196,32 +242,9 @@ validate_prerequisites() {
   exit "${ERROR_MISSING_LIBRARY}"
  fi
 
- # Check database connection and PostGIS
- # Use peer authentication if no host/user specified, otherwise use explicit user
- # Note: If host is "localhost" or empty, use peer auth (don't specify -h)
- # When using peer auth, PostgreSQL uses the current system user
- local PSQL_CMD="psql -d \"${WMS_DB_NAME}\""
- # Only add -h if host is set and is NOT localhost (for remote connections)
- if [[ -n "${WMS_DB_HOST}" ]] && [[ "${WMS_DB_HOST}" != "localhost" ]]; then
-  # Remote connection - need to specify host
-  PSQL_CMD="psql -h \"${WMS_DB_HOST}\" -d \"${WMS_DB_NAME}\""
-  # For remote connections, also need to specify user if provided
-  if [[ -n "${WMS_DB_USER}" ]]; then
-   PSQL_CMD="${PSQL_CMD} -U \"${WMS_DB_USER}\""
-  fi
-  # Only specify port for remote connections
-  if [[ -n "${WMS_DB_PORT}" ]]; then
-   PSQL_CMD="${PSQL_CMD} -p \"${WMS_DB_PORT}\""
-  fi
- else
-  # Local connection (localhost or empty) - use peer authentication
-  # Only specify user if explicitly provided AND different from system user
-  # For peer auth, PostgreSQL uses the current system user automatically
-  if [[ -n "${WMS_DB_USER}" ]] && [[ "${WMS_DB_USER}" != "$(whoami)" ]]; then
-   PSQL_CMD="${PSQL_CMD} -U \"${WMS_DB_USER}\""
-  fi
-  # Don't specify port for local peer auth connections
- fi
+ # Check database connection and PostGIS (TCP + password when needed — see __wms_resolve_psql_host)
+ local PSQL_CMD
+ PSQL_CMD="$(__wms_build_psql_cmd)"
 
  # Test database connection first
  if ! eval "${PSQL_CMD} -c \"SELECT 1;\"" &> /dev/null; then
@@ -250,32 +273,8 @@ validate_database_schema() {
   return 0
  fi
 
- # Build psql command
- # Use peer authentication if no host/user specified, otherwise use explicit user
- # Note: If host is "localhost" or empty, use peer auth (don't specify -h)
- # When using peer auth, PostgreSQL uses the current system user
- local PSQL_CMD="psql -d \"${WMS_DB_NAME}\""
- # Only add -h if host is set and is NOT localhost (for remote connections)
- if [[ -n "${WMS_DB_HOST}" ]] && [[ "${WMS_DB_HOST}" != "localhost" ]]; then
-  # Remote connection - need to specify host
-  PSQL_CMD="psql -h \"${WMS_DB_HOST}\" -d \"${WMS_DB_NAME}\""
-  # For remote connections, also need to specify user if provided
-  if [[ -n "${WMS_DB_USER}" ]]; then
-   PSQL_CMD="${PSQL_CMD} -U \"${WMS_DB_USER}\""
-  fi
-  # Only specify port for remote connections
-  if [[ -n "${WMS_DB_PORT}" ]]; then
-   PSQL_CMD="${PSQL_CMD} -p \"${WMS_DB_PORT}\""
-  fi
- else
-  # Local connection (localhost or empty) - use peer authentication
-  # Only specify user if explicitly provided AND different from system user
-  # For peer auth, PostgreSQL uses the current system user automatically
-  if [[ -n "${WMS_DB_USER}" ]] && [[ "${WMS_DB_USER}" != "$(whoami)" ]]; then
-   PSQL_CMD="${PSQL_CMD} -U \"${WMS_DB_USER}\""
-  fi
-  # Don't specify port for local peer auth connections
- fi
+ local PSQL_CMD
+ PSQL_CMD="$(__wms_build_psql_cmd)"
 
  # Run schema verification with ON_ERROR_STOP to ensure errors are caught
  # Redirect stderr to capture both errors and notices
@@ -301,31 +300,8 @@ validate_database_schema() {
 
 # Function to check if WMS is installed
 is_wms_installed() {
- # Use peer authentication if no host/user specified, otherwise use explicit user
- # Note: If host is "localhost" or empty, use peer auth (don't specify -h)
- # When using peer auth, PostgreSQL uses the current system user
- local PSQL_CMD="psql -d \"${WMS_DB_NAME}\""
- # Only add -h if host is set and is NOT localhost (for remote connections)
- if [[ -n "${WMS_DB_HOST}" ]] && [[ "${WMS_DB_HOST}" != "localhost" ]]; then
-  # Remote connection - need to specify host
-  PSQL_CMD="psql -h \"${WMS_DB_HOST}\" -d \"${WMS_DB_NAME}\""
-  # For remote connections, also need to specify user if provided
-  if [[ -n "${WMS_DB_USER}" ]]; then
-   PSQL_CMD="${PSQL_CMD} -U \"${WMS_DB_USER}\""
-  fi
-  # Only specify port for remote connections
-  if [[ -n "${WMS_DB_PORT}" ]]; then
-   PSQL_CMD="${PSQL_CMD} -p \"${WMS_DB_PORT}\""
-  fi
- else
-  # Local connection (localhost or empty) - use peer authentication
-  # Only specify user if explicitly provided AND different from system user
-  # For peer auth, PostgreSQL uses the current system user automatically
-  if [[ -n "${WMS_DB_USER}" ]] && [[ "${WMS_DB_USER}" != "$(whoami)" ]]; then
-   PSQL_CMD="${PSQL_CMD} -U \"${WMS_DB_USER}\""
-  fi
-  # Don't specify port for local peer auth connections
- fi
+ local PSQL_CMD
+ PSQL_CMD="$(__wms_build_psql_cmd)"
 
  # Test database connection first
  if ! eval "${PSQL_CMD} -c \"SELECT 1;\"" &> /dev/null; then
@@ -371,32 +347,8 @@ install_wms() {
  # Validate database schema before installation
  validate_database_schema
 
- # Build psql command
- # Use peer authentication if no host/user specified, otherwise use explicit user
- # Note: If host is "localhost" or empty, use peer auth (don't specify -h)
- # When using peer auth, PostgreSQL uses the current system user
- local PSQL_CMD="psql -d \"${WMS_DB_NAME}\""
- # Only add -h if host is set and is NOT localhost (for remote connections)
- if [[ -n "${WMS_DB_HOST}" ]] && [[ "${WMS_DB_HOST}" != "localhost" ]]; then
-  # Remote connection - need to specify host
-  PSQL_CMD="psql -h \"${WMS_DB_HOST}\" -d \"${WMS_DB_NAME}\""
-  # For remote connections, also need to specify user if provided
-  if [[ -n "${WMS_DB_USER}" ]]; then
-   PSQL_CMD="${PSQL_CMD} -U \"${WMS_DB_USER}\""
-  fi
-  # Only specify port for remote connections
-  if [[ -n "${WMS_DB_PORT}" ]]; then
-   PSQL_CMD="${PSQL_CMD} -p \"${WMS_DB_PORT}\""
-  fi
- else
-  # Local connection (localhost or empty) - use peer authentication
-  # Only specify user if explicitly provided AND different from system user
-  # For peer auth, PostgreSQL uses the current system user automatically
-  if [[ -n "${WMS_DB_USER}" ]] && [[ "${WMS_DB_USER}" != "$(whoami)" ]]; then
-   PSQL_CMD="${PSQL_CMD} -U \"${WMS_DB_USER}\""
-  fi
-  # Don't specify port for local peer auth connections
- fi
+ local PSQL_CMD
+ PSQL_CMD="$(__wms_build_psql_cmd)"
 
  # Execute installation SQL with error handling
  # Use ON_ERROR_STOP to ensure errors are caught
@@ -425,32 +377,8 @@ remove_wms() {
   return 0
  fi
 
- # Build psql command
- # Use peer authentication if no host/user specified, otherwise use explicit user
- # Note: If host is "localhost" or empty, use peer auth (don't specify -h)
- # When using peer auth, PostgreSQL uses the current system user
- local PSQL_CMD="psql -d \"${WMS_DB_NAME}\""
- # Only add -h if host is set and is NOT localhost (for remote connections)
- if [[ -n "${WMS_DB_HOST}" ]] && [[ "${WMS_DB_HOST}" != "localhost" ]]; then
-  # Remote connection - need to specify host
-  PSQL_CMD="psql -h \"${WMS_DB_HOST}\" -d \"${WMS_DB_NAME}\""
-  # For remote connections, also need to specify user if provided
-  if [[ -n "${WMS_DB_USER}" ]]; then
-   PSQL_CMD="${PSQL_CMD} -U \"${WMS_DB_USER}\""
-  fi
-  # Only specify port for remote connections
-  if [[ -n "${WMS_DB_PORT}" ]]; then
-   PSQL_CMD="${PSQL_CMD} -p \"${WMS_DB_PORT}\""
-  fi
- else
-  # Local connection (localhost or empty) - use peer authentication
-  # Only specify user if explicitly provided AND different from system user
-  # For peer auth, PostgreSQL uses the current system user automatically
-  if [[ -n "${WMS_DB_USER}" ]] && [[ "${WMS_DB_USER}" != "$(whoami)" ]]; then
-   PSQL_CMD="${PSQL_CMD} -U \"${WMS_DB_USER}\""
-  fi
-  # Don't specify port for local peer auth connections
- fi
+ local PSQL_CMD
+ PSQL_CMD="$(__wms_build_psql_cmd)"
 
  # Execute removal SQL
  if eval "${PSQL_CMD} -f \"${WMS_REMOVE_SQL}\""; then
@@ -468,32 +396,8 @@ show_status() {
  if is_wms_installed; then
   print_status "${GREEN}" "✅ WMS is installed"
 
-  # Build psql command using the same logic as is_wms_installed()
-  # Use peer authentication if no host/user specified, otherwise use explicit user
-  # Note: If host is "localhost" or empty, use peer auth (don't specify -h)
-  # When using peer auth, PostgreSQL uses the current system user
-  local PSQL_CMD="psql -d \"${WMS_DB_NAME}\""
-  # Only add -h if host is set and is NOT localhost (for remote connections)
-  if [[ -n "${WMS_DB_HOST}" ]] && [[ "${WMS_DB_HOST}" != "localhost" ]]; then
-   # Remote connection - need to specify host
-   PSQL_CMD="psql -h \"${WMS_DB_HOST}\" -d \"${WMS_DB_NAME}\""
-   # For remote connections, also need to specify user if provided
-   if [[ -n "${WMS_DB_USER}" ]]; then
-    PSQL_CMD="${PSQL_CMD} -U \"${WMS_DB_USER}\""
-   fi
-   # Only specify port for remote connections
-   if [[ -n "${WMS_DB_PORT}" ]]; then
-    PSQL_CMD="${PSQL_CMD} -p \"${WMS_DB_PORT}\""
-   fi
-  else
-   # Local connection (localhost or empty) - use peer authentication
-   # Only specify user if explicitly provided AND different from system user
-   # For peer auth, PostgreSQL uses the current system user automatically
-   if [[ -n "${WMS_DB_USER}" ]] && [[ "${WMS_DB_USER}" != "$(whoami)" ]]; then
-    PSQL_CMD="${PSQL_CMD} -U \"${WMS_DB_USER}\""
-   fi
-   # Don't specify port for local peer auth connections
-  fi
+  local PSQL_CMD
+  PSQL_CMD="$(__wms_build_psql_cmd)"
 
   # Show basic statistics (check if table exists first)
   # Use pg_tables for more reliable check, same as is_wms_installed()
