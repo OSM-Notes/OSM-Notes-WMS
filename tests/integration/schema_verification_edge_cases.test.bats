@@ -97,7 +97,7 @@ drop_test_database() {
   [[ "$output" == *"notes"* ]] || [[ "$output" == *"ERROR"* ]] || [[ "$output" == *"not found"* ]] || [[ "$output" == *"❌"* ]]
 }
 
-@test "Schema verification edge case: should detect missing countries table" {
+@test "Schema verification edge case: should warn when countries table is missing" {
   if [[ "${MOCK_MODE:-0}" == "1" ]]; then
     skip "Skipping in mock mode"
   fi
@@ -119,10 +119,11 @@ drop_test_database() {
   
   psql -d "${TEST_DBNAME}" -c "DROP TABLE IF EXISTS countries CASCADE;" 2> /dev/null || true
   
-  # Run verification script with ON_ERROR_STOP to ensure errors are caught
+  # Missing countries is a WARNING (disputed areas); script exits 0; counts use pg_temp function
   run psql -d "${TEST_DBNAME}" -v ON_ERROR_STOP=1 -f "${VERIFY_SCHEMA_SQL}" 2>&1
-  [ "$status" -ne 0 ]
-  [[ "$output" == *"countries"* ]] || [[ "$output" == *"ERROR"* ]] || [[ "$output" == *"not found"* ]] || [[ "$output" == *"❌"* ]]
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"countries"* ]]
+  [[ "$output" == *"WARNING"* ]] || [[ "$output" == *"⚠️"* ]]
 }
 
 # ============================================================================

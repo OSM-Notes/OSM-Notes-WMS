@@ -107,6 +107,13 @@ function __wms_build_psql_cmd() {
  echo "${cmd}"
 }
 
+# Run eval "$1" after disabling xtrace so command substitutions that merge stderr (2>&1)
+# are not polluted by bash trace lines when the script runs under bash -x / bash -xv.
+function __wms_psql_eval() {
+ set +x 2> /dev/null || true
+ eval "$1"
+}
+
 # Validates schema_version (core) against etc/schema_compatibility.sh for consumer wms.
 # Parameters: none.
 # Returns: none (exits on mismatch).
@@ -248,7 +255,7 @@ validate_prerequisites() {
 
  # Test database connection first (capture psql output on failure — real error was hidden by /dev/null)
  local psql_conn_err
- if ! psql_conn_err=$(eval "${PSQL_CMD} -c \"SELECT 1;\"" 2>&1); then
+ if ! psql_conn_err=$(__wms_psql_eval "${PSQL_CMD} -c \"SELECT 1;\"" 2>&1); then
   local conn_disp
   conn_disp="$(__wms_resolve_psql_host)"
   if [[ -n "${conn_disp}" ]]; then
@@ -289,7 +296,7 @@ validate_database_schema() {
  # Redirect stderr to capture both errors and notices
  local VERIFY_OUTPUT
  local VERIFY_STATUS
- VERIFY_OUTPUT=$(eval "${PSQL_CMD} -v ON_ERROR_STOP=1 -f \"${WMS_VERIFY_SCHEMA_SQL}\" 2>&1")
+ VERIFY_OUTPUT=$(__wms_psql_eval "${PSQL_CMD} -v ON_ERROR_STOP=1 -f \"${WMS_VERIFY_SCHEMA_SQL}\"" 2>&1)
  VERIFY_STATUS=$?
 
  if [[ "${VERIFY_STATUS}" -ne 0 ]]; then
@@ -319,7 +326,7 @@ is_wms_installed() {
 
  # Check if WMS schema exists
  local SCHEMA_EXISTS
- SCHEMA_EXISTS=$(eval "${PSQL_CMD} -t -A -c \"SELECT EXISTS(SELECT 1 FROM information_schema.schemata WHERE schema_name = 'wms');\"" 2>&1 | head -1 | tr -d ' \n\r' || echo "f")
+ SCHEMA_EXISTS=$(__wms_psql_eval "${PSQL_CMD} -t -A -c \"SELECT EXISTS(SELECT 1 FROM information_schema.schemata WHERE schema_name = 'wms');\"" 2>&1 | head -1 | tr -d ' \n\r' || echo "f")
 
  if [[ "${SCHEMA_EXISTS}" != "t" ]]; then
   return 1
@@ -327,7 +334,7 @@ is_wms_installed() {
 
  # Check if main WMS table exists (use pg_tables for more reliable check)
  local TABLE_EXISTS
- TABLE_EXISTS=$(eval "${PSQL_CMD} -t -A -c \"SELECT EXISTS(SELECT 1 FROM pg_tables WHERE schemaname = 'wms' AND tablename = 'notes_wms');\"" 2>&1 | head -1 | tr -d ' \n\r' || echo "f")
+ TABLE_EXISTS=$(__wms_psql_eval "${PSQL_CMD} -t -A -c \"SELECT EXISTS(SELECT 1 FROM pg_tables WHERE schemaname = 'wms' AND tablename = 'notes_wms');\"" 2>&1 | head -1 | tr -d ' \n\r' || echo "f")
 
  if [[ "${TABLE_EXISTS}" == "t" ]]; then
   return 0
@@ -411,27 +418,27 @@ show_status() {
   # Show basic statistics (check if table exists first)
   # Use pg_tables for more reliable check, same as is_wms_installed()
   local TABLE_EXISTS
-  TABLE_EXISTS=$(eval "${PSQL_CMD} -t -A -c \"SELECT EXISTS(SELECT 1 FROM pg_tables WHERE schemaname = 'wms' AND tablename = 'notes_wms');\"" 2>&1 | head -1 | tr -d ' \n\r' || echo "f")
+  TABLE_EXISTS=$(__wms_psql_eval "${PSQL_CMD} -t -A -c \"SELECT EXISTS(SELECT 1 FROM pg_tables WHERE schemaname = 'wms' AND tablename = 'notes_wms');\"" 2>&1 | head -1 | tr -d ' \n\r' || echo "f")
 
   if [[ "${TABLE_EXISTS}" == "t" ]]; then
    local NOTE_COUNT
-   NOTE_COUNT=$(eval "${PSQL_CMD} -t -c \"SELECT COUNT(*) FROM wms.notes_wms;\"" 2> /dev/null | tr -d ' ' || echo "0")
+   NOTE_COUNT=$(__wms_psql_eval "${PSQL_CMD} -t -c \"SELECT COUNT(*) FROM wms.notes_wms;\"" 2> /dev/null | tr -d ' ' || echo "0")
 
    print_status "${BLUE}" "📈 WMS Statistics:"
    print_status "${BLUE}" "   - Total notes in WMS: ${NOTE_COUNT}"
 
    # Show trigger information
    local TRIGGER_COUNT
-   TRIGGER_COUNT=$(eval "${PSQL_CMD} -t -c \"SELECT COUNT(*) FROM information_schema.triggers WHERE trigger_name IN ('insert_new_notes', 'update_notes');\"" 2> /dev/null | tr -d ' ' || echo "0")
+   TRIGGER_COUNT=$(__wms_psql_eval "${PSQL_CMD} -t -c \"SELECT COUNT(*) FROM information_schema.triggers WHERE trigger_name IN ('insert_new_notes', 'update_notes');\"" 2> /dev/null | tr -d ' ' || echo "0")
 
    print_status "${BLUE}" "   - Active triggers: ${TRIGGER_COUNT}"
 
    # Check for materialized view
    local MATVIEW_EXISTS
-   MATVIEW_EXISTS=$(eval "${PSQL_CMD} -t -c \"SELECT EXISTS(SELECT 1 FROM pg_matviews WHERE schemaname = 'wms' AND matviewname = 'disputed_and_unclaimed_areas');\"" 2> /dev/null | tr -d ' ' || echo "f")
+   MATVIEW_EXISTS=$(__wms_psql_eval "${PSQL_CMD} -t -c \"SELECT EXISTS(SELECT 1 FROM pg_matviews WHERE schemaname = 'wms' AND matviewname = 'disputed_and_unclaimed_areas');\"" 2> /dev/null | tr -d ' ' || echo "f")
    if [[ "${MATVIEW_EXISTS}" == "t" ]]; then
     local AREAS_COUNT
-    AREAS_COUNT=$(eval "${PSQL_CMD} -t -c \"SELECT COUNT(*) FROM wms.disputed_and_unclaimed_areas;\"" 2> /dev/null | tr -d ' ' || echo "0")
+    AREAS_COUNT=$(__wms_psql_eval "${PSQL_CMD} -t -c \"SELECT COUNT(*) FROM wms.disputed_and_unclaimed_areas;\"" 2> /dev/null | tr -d ' ' || echo "0")
     print_status "${BLUE}" "   - Disputed/unclaimed areas: ${AREAS_COUNT}"
    fi
   else
