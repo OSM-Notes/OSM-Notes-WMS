@@ -87,6 +87,12 @@ function __wms_assert_schema_contract {
  else
   unset PGUSER 2> /dev/null || true
  fi
+ # Required for TCP/password auth (same as geoserverConfig_validation.sh)
+ if [[ -n "${WMS_DB_PASSWORD}" ]]; then
+  export PGPASSWORD="${WMS_DB_PASSWORD}"
+ else
+  unset PGPASSWORD 2> /dev/null || true
+ fi
  __start_logger
  __assert_schema_compatible
 }
