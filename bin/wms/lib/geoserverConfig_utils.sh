@@ -57,7 +57,7 @@ ENVIRONMENT VARIABLES:
   GEOSERVER_PASSWORD  GeoServer admin password
   DBNAME              Database name (default: osm_notes)
   DBUSER              Database user (default: postgres)
-  GEOSERVER_DBPASSWORD  PostgreSQL password for GEOSERVER_DBUSER (else WMS_DBPASSWORD)
+  GEOSERVER_DBPASSWORD  PostgreSQL password for GEOSERVER_DBUSER
   DBHOST              Database host (default: localhost)
   DBPORT              Database port (default: 5432)
 

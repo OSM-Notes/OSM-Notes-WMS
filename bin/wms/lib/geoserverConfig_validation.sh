@@ -152,7 +152,7 @@ validate_prerequisites() {
  else
   print_status "${YELLOW}" "⚠️  Skipping PostgreSQL validation (no password provided)"
   print_status "${YELLOW}" "   GeoServer will validate the connection when creating the datastore"
-  print_status "${YELLOW}" "   💡 To enable validation, set GEOSERVER_DBPASSWORD or WMS_DBPASSWORD in etc/wms.properties.sh"
+  print_status "${YELLOW}" "   💡 To enable validation, set GEOSERVER_DBPASSWORD in etc/wms.properties.sh"
  fi
 
  # Check if WMS schema exists (only if we can connect to PostgreSQL)

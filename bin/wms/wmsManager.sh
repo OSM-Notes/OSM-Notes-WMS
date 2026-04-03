@@ -202,26 +202,17 @@ EXAMPLES:
   $0 install --dry-run    # Show what would be installed
 
 ENVIRONMENT VARIABLES:
-  Database connection (uses same variables as rest of project):
-  DBNAME         Database name (from etc/properties.sh, default: notes)
-  DB_USER        Database user (from etc/properties.sh, empty for peer auth)
+  Install DB (wmsManager only; see etc/wms.properties.sh):
+    WMS_DBNAME       Database name (default: notes)
+    WMS_DBUSER       Install user, default notes (must own public.notes for triggers)
+    WMS_DBPASSWORD   Empty for peer; set for TCP/password auth
+    WMS_DBHOST       Empty for Unix socket peer; set for TCP
+    WMS_DBPORT       Optional; empty uses default port
 
-  Note: wmsManager.sh requires elevated privileges (CREATE, ALTER, etc.)
-        It uses the system user (notes) via peer authentication, NOT geoserver
-    DB_PASSWORD    Database password (from etc/properties.sh)
-    DB_HOST        Database host (from etc/properties.sh, empty for peer auth)
-    DB_PORT        Database port (from etc/properties.sh, empty for default)
+  GeoServer datastore uses GEOSERVER_DBUSER / GEOSERVER_DBPASSWORD / GEOSERVER_DBHOST /
+  GEOSERVER_DBPORT in geoserverConfig.sh (not mixed with WMS_DBUSER).
 
-  WMS-specific overrides (optional, only if different from main config):
-    WMS_DBNAME     Override database name
-    WMS_DBUSER     Override database user
-    WMS_DBPASSWORD Override database password
-    WMS_DBHOST     Override database host
-    WMS_DBPORT     Override database port
-
-  For peer authentication (local connections), leave DB_USER, DB_HOST, and
-  DB_PORT empty or unset in etc/properties.sh. The script will use the current
-  system user.
+  Fallbacks from etc/properties.sh: DBNAME, DB_USER, DB_PASSWORD, DB_HOST, DB_PORT
 
 EOF
 }
@@ -314,6 +305,23 @@ validate_database_schema() {
  print_status "${GREEN}" "✅ Database schema validated successfully"
 }
 
+# CREATE/DROP TRIGGER on public.notes requires table owner or superuser (not merely SELECT/GRANT).
+function __wms_validate_notes_owner_for_triggers() {
+ local PSQL_CMD
+ PSQL_CMD="$(__wms_build_psql_cmd)"
+ local can_manage
+ can_manage=$(__wms_psql_eval "${PSQL_CMD} -t -A -c \"SELECT EXISTS ( SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace JOIN pg_roles u ON u.rolname = current_user WHERE n.nspname = 'public' AND c.relname = 'notes' AND c.relkind IN ('r', 'p') AND (c.relowner = u.oid OR u.rolsuper));\"" 2>&1 | head -1 | tr -d ' \n\r' || echo "f")
+ if [[ "${can_manage}" != "t" ]]; then
+  print_status "${RED}" "❌ ERROR: The current database user cannot manage triggers on public.notes."
+  print_status "${YELLOW}" "   PostgreSQL requires owning public.notes or being a superuser (SELECT/CONNECT is not enough)."
+  print_status "${YELLOW}" "   Use the OSM-Notes-Ingestion role that owns public.notes (e.g. peer auth as that user), or set"
+  print_status "${YELLOW}" "   WMS_DBUSER/WMS_DBPASSWORD to that owner. As superuser you may run:"
+  print_status "${YELLOW}" "     ALTER TABLE public.notes OWNER TO osm_notes_wms_user;"
+  print_status "${YELLOW}" "   (only if that ownership change is acceptable for your operations)."
+  exit "${ERROR_GENERAL}"
+ fi
+}
+
 # Function to check if WMS is installed
 is_wms_installed() {
  local PSQL_CMD
@@ -363,6 +371,8 @@ install_wms() {
  # Validate database schema before installation
  validate_database_schema
 
+ __wms_validate_notes_owner_for_triggers
+
  local PSQL_CMD
  PSQL_CMD="$(__wms_build_psql_cmd)"
 
@@ -392,6 +402,8 @@ remove_wms() {
   print_status "${YELLOW}" "DRY RUN: Would remove WMS components"
   return 0
  fi
+
+ __wms_validate_notes_owner_for_triggers
 
  local PSQL_CMD
  PSQL_CMD="$(__wms_build_psql_cmd)"

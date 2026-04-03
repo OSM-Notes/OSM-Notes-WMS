@@ -104,20 +104,13 @@ if [[ -d "${LIB_DIR}" ]]; then
 fi
 
 # Use WMS properties for configuration
-# Database connection for GeoServer (from WMS properties or main properties)
-# Priority: GEOSERVER_DBUSER > WMS_DBUSER > defaults
-# Note: GeoServer should use the 'geoserver' user with read-only permissions
-#       This user is used to configure GeoServer datastores and verify data access
-#       GeoServer CANNOT use peer authentication, so host/port must be set
-# Default DBNAME is 'notes' to match production, but can be overridden via WMS_DBNAME
-DBNAME="${WMS_DBNAME:-${DBNAME:-notes}}"
-# Use GEOSERVER_DBUSER if set, otherwise WMS_DBUSER, otherwise default to geoserver
-DBUSER="${GEOSERVER_DBUSER:-${WMS_DBUSER:-geoserver}}"
-# PostgreSQL password for GeoServer datastore: GEOSERVER_DBPASSWORD, else WMS_DBPASSWORD
-DBPASSWORD="${GEOSERVER_DBPASSWORD:-${WMS_DBPASSWORD:-}}"
-# GeoServer cannot use peer authentication, so default to localhost:5432 if not set
-DBHOST="${WMS_DBHOST:-${DB_HOST:-localhost}}"
-DBPORT="${WMS_DBPORT:-${DB_PORT:-5432}}"
+# Database connection for GeoServer only (separate from wmsManager.sh install user)
+# - GeoServer datastore: GEOSERVER_DB* + WMS_DBNAME (shared DB name)
+DBNAME="${WMS_DBNAME:-notes}"
+DBUSER="${GEOSERVER_DBUSER:-osm_notes_wms_user}"
+DBPASSWORD="${GEOSERVER_DBPASSWORD:-}"
+DBHOST="${GEOSERVER_DBHOST:-localhost}"
+DBPORT="${GEOSERVER_DBPORT:-5432}"
 
 # GeoServer configuration (from wms.properties.sh)
 # Priority: Environment variables > wms.properties.sh > defaults
@@ -203,12 +196,11 @@ ENVIRONMENT VARIABLES:
   GEOSERVER_URL       GeoServer REST API URL
   GEOSERVER_USER      GeoServer admin username
   GEOSERVER_PASSWORD  GeoServer admin password
-  DBNAME              Database name (default: osm_notes)
-  DBUSER              Database user (default: postgres)
-  GEOSERVER_DBPASSWORD  PostgreSQL password for GEOSERVER_DBUSER (etc/wms.properties.sh)
-  WMS_DBPASSWORD        Used only if GEOSERVER_DBPASSWORD is empty (same password for both roles)
-  DBHOST              Database host (default: localhost)
-  DBPORT              Database port (default: 5432)
+  WMS_DBNAME            Database name (default: notes)
+  GEOSERVER_DBUSER      PostgreSQL user for datastore (default: osm_notes_wms_user)
+  GEOSERVER_DBPASSWORD  Password for that user
+  GEOSERVER_DBHOST      DB host (default: localhost)
+  GEOSERVER_DBPORT      DB port (default: 5432)
 
 EOF
 }
@@ -372,7 +364,7 @@ validate_prerequisites() {
  else
   print_status "${YELLOW}" "⚠️  Skipping PostgreSQL validation (no password provided)"
   print_status "${YELLOW}" "   GeoServer will validate the connection when creating the datastore"
-  print_status "${YELLOW}" "   💡 To enable validation, set GEOSERVER_DBPASSWORD or WMS_DBPASSWORD in etc/wms.properties.sh"
+  print_status "${YELLOW}" "   💡 To enable validation, set GEOSERVER_DBPASSWORD in etc/wms.properties.sh"
  fi
 
  # Check if WMS schema exists (only if we can connect to PostgreSQL)

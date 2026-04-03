@@ -20,23 +20,25 @@
 # -----------------------------------------------------------------------------
 # Variables consumed by wmsManager.sh / geoserverConfig.sh
 # -----------------------------------------------------------------------------
-# wmsManager.sh: WMS_DBNAME, WMS_DBUSER, WMS_DBPASSWORD, WMS_DBHOST, WMS_DBPORT
-#   (+ DB_* from properties.sh when present)
-# geoserverConfig.sh: DB + GEOSERVER_*, WMS_SCHEMA, WMS_TABLE, layer titles/descriptions,
-#   bbox, WMS_STYLE_*, etc. (see bin/wms source for the full list)
+# wmsManager.sh: WMS_DBNAME, WMS_DBUSER (default notes), WMS_DBPASSWORD, WMS_DBHOST, WMS_DBPORT
+#   Empty host/port/password = peer on local socket (run as matching OS user, e.g. sudo -u notes).
+# geoserverConfig.sh: GEOSERVER_DBUSER (default osm_notes_wms_user), GEOSERVER_DBPASSWORD,
+#   GEOSERVER_DBHOST, GEOSERVER_DBPORT — TCP only; not mixed with WMS_DBUSER.
 # -----------------------------------------------------------------------------
 
 # =============================================================================
 # Database
 # =============================================================================
 WMS_DBNAME="${WMS_DBNAME:-notes}"
-WMS_DBUSER="${WMS_DBUSER:-}"
+WMS_DBUSER="${WMS_DBUSER:-notes}"
 WMS_DBPASSWORD="${WMS_DBPASSWORD:-}"
 WMS_DBHOST="${WMS_DBHOST:-}"
 WMS_DBPORT="${WMS_DBPORT:-}"
 
-GEOSERVER_DBUSER="${GEOSERVER_DBUSER:-geoserver}"
+GEOSERVER_DBUSER="${GEOSERVER_DBUSER:-osm_notes_wms_user}"
 GEOSERVER_DBPASSWORD="${GEOSERVER_DBPASSWORD:-}"
+GEOSERVER_DBHOST="${GEOSERVER_DBHOST:-localhost}"
+GEOSERVER_DBPORT="${GEOSERVER_DBPORT:-5432}"
 
 WMS_SCHEMA="${WMS_SCHEMA:-wms}"
 WMS_TABLE="${WMS_TABLE:-notes_wms}"
@@ -161,7 +163,7 @@ __validate_wms_properties() {
 
 __export_wms_properties() {
  export WMS_DBNAME WMS_DBUSER WMS_DBPASSWORD WMS_DBHOST WMS_DBPORT
- export GEOSERVER_DBUSER GEOSERVER_DBPASSWORD
+ export GEOSERVER_DBUSER GEOSERVER_DBPASSWORD GEOSERVER_DBHOST GEOSERVER_DBPORT
  export WMS_SCHEMA WMS_TABLE
  export GEOSERVER_HOME GEOSERVER_DATA_DIR GEOSERVER_URL
  export GEOSERVER_USER GEOSERVER_PASSWORD
@@ -179,7 +181,8 @@ __export_wms_properties() {
 
 __show_wms_config() {
  echo "=== WMS Configuration (minimal) ==="
- echo "Database: ${WMS_DBHOST}:${WMS_DBPORT}/${WMS_DBNAME} (${WMS_DBUSER:-peer})"
+ echo "wmsManager DB: ${WMS_DBHOST:-peer}:${WMS_DBPORT:-5432}/${WMS_DBNAME} (${WMS_DBUSER})"
+ echo "GeoServer DB: ${GEOSERVER_DBHOST}:${GEOSERVER_DBPORT}/${WMS_DBNAME} (${GEOSERVER_DBUSER})"
  echo "Schema: ${WMS_SCHEMA}.${WMS_TABLE}"
  echo "GeoServer: ${GEOSERVER_URL} (${GEOSERVER_USER})"
  echo "Workspace: ${GEOSERVER_WORKSPACE}  Store: ${GEOSERVER_STORE}  Layer: ${GEOSERVER_LAYER}"
