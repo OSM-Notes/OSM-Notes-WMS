@@ -1312,7 +1312,7 @@ upload_style() {
   print_status "${BLUE}" "   Removing existing style '${ACTUAL_STYLE_NAME}' before recreating..."
   local DELETE_CODE
   local STYLE_DELETED=false
-  
+
   # Try to delete from workspace-specific location first
   if [[ -n "${GEOSERVER_WORKSPACE:-}" ]]; then
    local WORKSPACE_DELETE_URL="${GEOSERVER_URL}/rest/workspaces/${GEOSERVER_WORKSPACE}/styles/${ACTUAL_STYLE_NAME}"
@@ -1323,7 +1323,7 @@ upload_style() {
     STYLE_DELETED=true
    fi
   fi
-  
+
   # Also try to delete from global location (in case it exists there)
   if [[ "${STYLE_DELETED}" == "false" ]] || [[ "${FORCE_UPLOAD}" == "true" ]]; then
    local GLOBAL_DELETE_URL="${GEOSERVER_URL}/rest/styles/${ACTUAL_STYLE_NAME}"
@@ -1334,7 +1334,7 @@ upload_style() {
     STYLE_DELETED=true
    fi
   fi
-  
+
   # Also try with provided name if different from actual name
   if [[ "${STYLE_NAME}" != "${ACTUAL_STYLE_NAME}" ]]; then
    if [[ -n "${GEOSERVER_WORKSPACE:-}" ]]; then
@@ -1354,7 +1354,7 @@ upload_style() {
     STYLE_DELETED=true
    fi
   fi
-  
+
   if [[ "${STYLE_DELETED}" == "true" ]]; then
    sleep 2 # Wait a moment for GeoServer to process the deletion and clear cache
   fi
@@ -1926,7 +1926,7 @@ remove_style() {
    -u "${GEOSERVER_USER}:${GEOSERVER_PASSWORD}" \
    -X DELETE "${WORKSPACE_STYLE_URL}" 2> /dev/null | tail -1)
   RESPONSE_BODY=$(cat "${TEMP_RESPONSE}" 2> /dev/null || echo "")
-  
+
   if [[ "${HTTP_CODE}" == "200" ]] || [[ "${HTTP_CODE}" == "204" ]]; then
    print_status "${GREEN}" "✅ Style '${STYLE_NAME}' removed (from workspace)"
    STYLE_REMOVED=true
@@ -1948,7 +1948,7 @@ remove_style() {
    -u "${GEOSERVER_USER}:${GEOSERVER_PASSWORD}" \
    -X DELETE "${GLOBAL_STYLE_URL}" 2> /dev/null | tail -1)
   RESPONSE_BODY=$(cat "${TEMP_RESPONSE}" 2> /dev/null || echo "")
-  
+
   if [[ "${HTTP_CODE}" == "200" ]] || [[ "${HTTP_CODE}" == "204" ]]; then
    print_status "${GREEN}" "✅ Style '${STYLE_NAME}' removed (from global)"
    STYLE_REMOVED=true
