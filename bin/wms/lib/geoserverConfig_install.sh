@@ -45,7 +45,7 @@ install_geoserver_config() {
  local STYLE_ERRORS=0
  local MANUAL_STYLES_NEEDED=false
  local STYLES_NEEDING_MANUAL=()
- 
+
  if ! upload_style "${WMS_STYLE_OPEN_FILE}" "${WMS_STYLE_OPEN_NAME}"; then
   local UPLOAD_EXIT_CODE=$?
   ((STYLE_ERRORS++))
@@ -78,10 +78,10 @@ install_geoserver_config() {
    STYLES_NEEDING_MANUAL+=("disputed_and_unclaimed_areas:${WMS_STYLE_DISPUTED_FILE}")
   fi
  fi
- 
+
  # IMPORTANT: After uploading styles via REST API, copy SLD files directly to preserve colors
  # GeoServer REST API transforms SLD 1.1.0 to 1.0.0 and loses SvgParameter elements (colors)
- # Process: 1) Upload via HTTP REST API (registers styles in GeoServer) 
+ # Process: 1) Upload via HTTP REST API (registers styles in GeoServer)
  #          2) Copy SLD files directly (preserves colors that REST API loses)
  print_status "${YELLOW}" ""
  print_status "${YELLOW}" "⚠️  IMPORTANT: Preserving SLD colors..."
@@ -95,7 +95,7 @@ install_geoserver_config() {
  elif [[ -d "/home/geoserver/data/geoserver/styles" ]]; then
   GEOSERVER_STYLES_DIR="/home/geoserver/data/geoserver/styles"
  fi
- 
+
  if [[ -n "${GEOSERVER_STYLES_DIR}" ]]; then
   local COPY_FAILED=false
   local FILES_TO_COPY=()
@@ -110,7 +110,7 @@ install_geoserver_config() {
    esac
    local TARGET_SLD="${GEOSERVER_STYLES_DIR}/${STYLE_NAME}.sld"
    local COPY_SUCCESS=false
-   
+
    # First try without sudo (if we have write permissions on directory or file)
    # Check if directory is writable OR if file exists and is writable
    if [[ -w "${GEOSERVER_STYLES_DIR}" ]] || ([[ -f "${TARGET_SLD}" ]] && [[ -w "${TARGET_SLD}" ]]); then
@@ -130,7 +130,7 @@ install_geoserver_config() {
      fi
     fi
    fi
-   
+
    # If copy failed and sudo is available, try with sudo (non-interactive)
    if [[ "${COPY_SUCCESS}" == "false" ]] && command -v sudo >/dev/null 2>&1; then
     # Try to copy with sudo -n (non-interactive, fails if password required)
@@ -163,7 +163,7 @@ install_geoserver_config() {
      fi
     fi
    fi
-   
+
    # If still failed, mark for manual copy
    if [[ "${COPY_SUCCESS}" == "false" ]]; then
     COPY_FAILED=true
@@ -179,7 +179,7 @@ install_geoserver_config() {
     fi
    fi
   done
-  
+
   # Always show copy commands and restart instructions
   # Even if copy succeeded, GeoServer may need restart to reload styles from filesystem
   print_status "${YELLOW}" ""
@@ -209,7 +209,7 @@ install_geoserver_config() {
    print_status "${GREEN}" "   ✅ SLD files copied successfully with colors preserved"
   fi
  fi
- 
+
  # Upload country-based styles (alternative styles)
  # If styles failed and not using --force, exit
  if [[ ${STYLE_ERRORS} -gt 0 ]] && [[ "${FORCE:-false}" != "true" ]]; then

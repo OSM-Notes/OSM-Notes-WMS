@@ -67,13 +67,13 @@ remove_geoserver_config() {
  local WORKSPACE_CHECK_CODE
  local TEMP_CURL_OUTPUT="${TMP_DIR}/workspace_check_$$.tmp"
  local TEMP_CURL_ERROR="${TMP_DIR}/workspace_check_error_$$.tmp"
- 
+
  # Use a subshell to avoid set -e from stopping the script
  WORKSPACE_CHECK_CODE=$(curl -s -w "%{http_code}" -o "${TEMP_CURL_OUTPUT}" \
   -u "${GEOSERVER_USER}:${GEOSERVER_PASSWORD}" \
   --connect-timeout 5 --max-time 10 \
   "${WORKSPACE_CHECK_URL}" 2> "${TEMP_CURL_ERROR}" | tail -1) || WORKSPACE_CHECK_CODE="000"
- 
+
  # Check if curl failed completely (connection error)
  if [[ "${WORKSPACE_CHECK_CODE}" == "000" ]] || [[ -z "${WORKSPACE_CHECK_CODE}" ]]; then
   local CURL_ERROR_MSG
