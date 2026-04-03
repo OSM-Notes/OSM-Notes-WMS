@@ -1,90 +1,130 @@
--- Grant read-only permissions to GeoServer DB roles on 'notes' database
--- Roles: geoserver (legacy), osm_notes_wms_user (default GEOSERVER_DBUSER in geoserverConfig.sh)
--- Includes SELECT on public WMS views (notes_open_view, notes_closed_view, disputed_areas_view)
+-- Grant read-only permissions for GeoServer datastore role and optional legacy role.
+-- Pass from psql: -v dbname=YOUR_DB -v read_role=YOUR_GEOSERVER_USER
+--   (dbname must match the database you connect to with -d)
 --
--- Run as database owner or superuser after sql/wms/prepareDatabase.sql (views must exist)
--- Usage: psql -d notes -f sql/wms/grantGeoserverPermissions.sql
+-- Run as database owner or superuser after sql/wms/prepareDatabase.sql (views must exist).
+-- wmsManager.sh install runs this automatically; if it fails, run the same command as superuser/DBA.
 --
 -- Author: Andres Gomez (AngocA)
--- Version: 2026-04-02
+-- Version: 2026-04-03
 
--- Connect to notes database
-\c notes
-
--- Check if geoserver user exists, create if not
-DO $$
+-- Legacy role "geoserver" (optional): create only if privileges allow
+DO $legacy$
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_user WHERE usename = 'geoserver') THEN
-    CREATE USER geoserver;
-    RAISE NOTICE 'User geoserver created';
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'geoserver') THEN
+    RAISE NOTICE 'Role geoserver already exists';
   ELSE
-    RAISE NOTICE 'User geoserver already exists';
+    BEGIN
+      CREATE USER geoserver;
+      RAISE NOTICE 'User geoserver created';
+    EXCEPTION
+      WHEN SQLSTATE '42501' THEN
+        RAISE NOTICE 'Skipping CREATE USER geoserver: permission denied (requires superuser or CREATEROLE).';
+      WHEN OTHERS THEN
+        RAISE NOTICE 'Skipping CREATE USER geoserver: %', SQLERRM;
+    END;
   END IF;
-END $$;
+END
+$legacy$;
 
--- Grant CONNECT privilege on database
-GRANT CONNECT ON DATABASE notes TO geoserver;
-
--- Grant USAGE on schemas
-GRANT USAGE ON SCHEMA public TO geoserver;
-GRANT USAGE ON SCHEMA wms TO geoserver;
-
--- Grant SELECT (read-only) on all existing tables in wms schema
-GRANT SELECT ON ALL TABLES IN SCHEMA wms TO geoserver;
-
--- Grant SELECT on all existing sequences in wms schema (if any)
-GRANT SELECT ON ALL SEQUENCES IN SCHEMA wms TO geoserver;
-
--- Set default privileges for future tables in wms schema
--- This ensures new tables created in wms schema will automatically have read permissions
-ALTER DEFAULT PRIVILEGES IN SCHEMA wms GRANT SELECT ON TABLES TO geoserver;
-ALTER DEFAULT PRIVILEGES IN SCHEMA wms GRANT SELECT ON SEQUENCES TO geoserver;
-
--- Grant SELECT on countries table (needed for WMS layers that use country data)
-GRANT SELECT ON TABLE countries TO geoserver;
-
--- Public views used by GeoServer feature types (not included in ALL TABLES IN SCHEMA wms)
-GRANT SELECT ON TABLE public.notes_open_view TO geoserver;
-GRANT SELECT ON TABLE public.notes_closed_view TO geoserver;
-GRANT SELECT ON TABLE public.disputed_areas_view TO geoserver;
-
--- =============================================================================
--- osm_notes_wms_user (default GEOSERVER_DBUSER in geoserverConfig.sh)
--- Same read-only profile as geoserver; required for WMS layers on public.* views
--- Skipped automatically if the role does not exist
--- =============================================================================
-DO $$
+-- Grants to legacy geoserver when that role exists
+DO $ggeo$
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'osm_notes_wms_user') THEN
-    RAISE NOTICE 'Skipping grants: role osm_notes_wms_user does not exist (create it, then re-run this file)';
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'geoserver') THEN
+    RAISE NOTICE 'Skipping grants to geoserver: role does not exist';
     RETURN;
   END IF;
-  EXECUTE 'GRANT CONNECT ON DATABASE notes TO osm_notes_wms_user';
-  EXECUTE 'GRANT USAGE ON SCHEMA public TO osm_notes_wms_user';
-  EXECUTE 'GRANT USAGE ON SCHEMA wms TO osm_notes_wms_user';
-  EXECUTE 'GRANT SELECT ON ALL TABLES IN SCHEMA wms TO osm_notes_wms_user';
-  EXECUTE 'GRANT SELECT ON ALL SEQUENCES IN SCHEMA wms TO osm_notes_wms_user';
-  EXECUTE 'ALTER DEFAULT PRIVILEGES IN SCHEMA wms GRANT SELECT ON TABLES TO osm_notes_wms_user';
-  EXECUTE 'ALTER DEFAULT PRIVILEGES IN SCHEMA wms GRANT SELECT ON SEQUENCES TO osm_notes_wms_user';
-  EXECUTE 'GRANT SELECT ON TABLE countries TO osm_notes_wms_user';
-  EXECUTE 'GRANT SELECT ON TABLE public.notes_open_view TO osm_notes_wms_user';
-  EXECUTE 'GRANT SELECT ON TABLE public.notes_closed_view TO osm_notes_wms_user';
-  EXECUTE 'GRANT SELECT ON TABLE public.disputed_areas_view TO osm_notes_wms_user';
-  RAISE NOTICE 'Grants applied to osm_notes_wms_user';
-END $$;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.schemata WHERE schema_name = 'wms') THEN
+    RAISE NOTICE 'Skipping grants to geoserver: schema wms does not exist';
+    RETURN;
+  END IF;
+  EXECUTE format('GRANT CONNECT ON DATABASE %I TO geoserver', current_database());
+  EXECUTE 'GRANT USAGE ON SCHEMA public TO geoserver';
+  EXECUTE 'GRANT USAGE ON SCHEMA wms TO geoserver';
+  EXECUTE 'GRANT SELECT ON ALL TABLES IN SCHEMA wms TO geoserver';
+  EXECUTE 'GRANT SELECT ON ALL SEQUENCES IN SCHEMA wms TO geoserver';
+  EXECUTE 'ALTER DEFAULT PRIVILEGES IN SCHEMA wms GRANT SELECT ON TABLES TO geoserver';
+  EXECUTE 'ALTER DEFAULT PRIVILEGES IN SCHEMA wms GRANT SELECT ON SEQUENCES TO geoserver';
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'countries'
+  ) THEN
+    EXECUTE 'GRANT SELECT ON TABLE public.countries TO geoserver';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM information_schema.views
+    WHERE table_schema = 'public' AND table_name = 'notes_open_view'
+  ) THEN
+    EXECUTE 'GRANT SELECT ON TABLE public.notes_open_view TO geoserver';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM information_schema.views
+    WHERE table_schema = 'public' AND table_name = 'notes_closed_view'
+  ) THEN
+    EXECUTE 'GRANT SELECT ON TABLE public.notes_closed_view TO geoserver';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM information_schema.views
+    WHERE table_schema = 'public' AND table_name = 'disputed_areas_view'
+  ) THEN
+    EXECUTE 'GRANT SELECT ON TABLE public.disputed_areas_view TO geoserver';
+  END IF;
+  RAISE NOTICE 'Grants applied to geoserver';
+END
+$ggeo$;
 
--- Verify permissions
-\echo '✅ Permissions granted to geoserver user:'
-\echo '   - CONNECT on database notes'
-\echo '   - USAGE on schemas public and wms'
-\echo '   - SELECT on all tables in wms schema'
-\echo '   - SELECT on countries table and public WMS views (notes_*, disputed_areas_view)'
-\echo '   - Default privileges set for future tables in wms schema'
-\echo ''
-\echo '✅ Same grants applied to osm_notes_wms_user (if role exists)'
-\echo ''
-\echo 'To verify, run as geoserver user:'
-\echo '   psql -U geoserver -d notes -c "SELECT COUNT(*) FROM wms.notes_wms;"'
-\echo 'To verify as datastore user:'
-\echo '   psql -U osm_notes_wms_user -d notes -c "SELECT COUNT(*) FROM public.notes_open_view LIMIT 1;"'
+-- Datastore role (read_role): name passed via psql -v (stored in temp row so substitution is outside dollar-quotes)
+CREATE TEMP TABLE IF NOT EXISTS _wms_grant_read_role (role_name text PRIMARY KEY);
+DELETE FROM _wms_grant_read_role;
+INSERT INTO _wms_grant_read_role VALUES (:'read_role');
 
+DO $gread$
+DECLARE
+  r name;
+BEGIN
+  SELECT role_name::name INTO STRICT r FROM _wms_grant_read_role;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = r) THEN
+    RAISE EXCEPTION 'GeoServer read role "%" does not exist. Create it first (CREATE ROLE ... LOGIN), then re-run this script.', r;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.schemata WHERE schema_name = 'wms') THEN
+    RAISE EXCEPTION 'Schema wms does not exist. Run sql/wms/prepareDatabase.sql before this script.';
+  END IF;
+  EXECUTE format('GRANT CONNECT ON DATABASE %I TO %I', current_database(), r);
+  EXECUTE format('GRANT USAGE ON SCHEMA public TO %I', r);
+  EXECUTE format('GRANT USAGE ON SCHEMA wms TO %I', r);
+  EXECUTE format('GRANT SELECT ON ALL TABLES IN SCHEMA wms TO %I', r);
+  EXECUTE format('GRANT SELECT ON ALL SEQUENCES IN SCHEMA wms TO %I', r);
+  EXECUTE format('ALTER DEFAULT PRIVILEGES IN SCHEMA wms GRANT SELECT ON TABLES TO %I', r);
+  EXECUTE format('ALTER DEFAULT PRIVILEGES IN SCHEMA wms GRANT SELECT ON SEQUENCES TO %I', r);
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'countries'
+  ) THEN
+    EXECUTE format('GRANT SELECT ON TABLE public.countries TO %I', r);
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM information_schema.views
+    WHERE table_schema = 'public' AND table_name = 'notes_open_view'
+  ) THEN
+    EXECUTE format('GRANT SELECT ON TABLE public.notes_open_view TO %I', r);
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM information_schema.views
+    WHERE table_schema = 'public' AND table_name = 'notes_closed_view'
+  ) THEN
+    EXECUTE format('GRANT SELECT ON TABLE public.notes_closed_view TO %I', r);
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM information_schema.views
+    WHERE table_schema = 'public' AND table_name = 'disputed_areas_view'
+  ) THEN
+    EXECUTE format('GRANT SELECT ON TABLE public.disputed_areas_view TO %I', r);
+  END IF;
+  RAISE NOTICE 'Grants applied to %', r;
+END
+$gread$;
+
+DROP TABLE IF EXISTS _wms_grant_read_role;
+
+\echo ''
+\echo 'GeoServer DB permissions applied to read_role (and geoserver if present).'

@@ -18,6 +18,8 @@ setup() {
  export TEST_DBHOST=""
  export TEST_DBPORT=""
  export MOCK_MODE=0
+ # Real install runs grantGeoserverPermissions.sql; skip in BATS unless WMS_SKIP_GEOSERVER_GRANTS=0 (needs DB superuser for CREATE ROLE sometimes)
+ export WMS_SKIP_GEOSERVER_GRANTS="${WMS_SKIP_GEOSERVER_GRANTS:-1}"
  # Choose mock vs real WMS before WMS_SCRIPT is set: late MOCK_MODE flips used to
  # leave WMS_SCRIPT pointing at bin/wms/wmsManager.sh while tests expected mocks.
  if ! command -v psql > /dev/null 2>&1 \

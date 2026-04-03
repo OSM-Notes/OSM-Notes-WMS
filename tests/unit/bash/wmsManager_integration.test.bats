@@ -145,6 +145,7 @@ teardown() {
  local SQL_FILES=(
    "sql/wms/prepareDatabase.sql"
    "sql/wms/removeFromDatabase.sql"
+   "sql/wms/grantGeoserverPermissions.sql"
  )
  
  for SQL_FILE in "${SQL_FILES[@]}"; do

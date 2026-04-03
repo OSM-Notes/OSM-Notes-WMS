@@ -46,6 +46,8 @@ export SCHEMA_CONSUMER="${SCHEMA_CONSUMER:-wms}"
 if [[ -z "${TEST_DBNAME:-}" ]] && [[ -f "${PROJECT_ROOT}/etc/wms.properties.sh" ]]; then
  source "${PROJECT_ROOT}/etc/wms.properties.sh"
 fi
+# Datastore role for GeoServer (GRANT targets); must match geoserverConfig datastore user
+GEOSERVER_DBUSER="${GEOSERVER_DBUSER:-osm_notes_wms_user}"
 
 # Set database variables with priority: WMS_* > DBNAME/DB_USER (from properties.sh) > TEST_* > default
 # Use same DB connection variables as rest of project for consistency
@@ -161,6 +163,7 @@ WMS_SQL_DIR="${PROJECT_ROOT}/sql/wms"
 WMS_PREPARE_SQL="${WMS_SQL_DIR}/prepareDatabase.sql"
 WMS_REMOVE_SQL="${WMS_SQL_DIR}/removeFromDatabase.sql"
 WMS_VERIFY_SCHEMA_SQL="${WMS_SQL_DIR}/verifySchema.sql"
+WMS_GRANT_SQL="${WMS_SQL_DIR}/grantGeoserverPermissions.sql"
 
 # Colors for output
 RED='\033[0;31m'
@@ -212,6 +215,10 @@ ENVIRONMENT VARIABLES:
   GeoServer datastore uses GEOSERVER_DBUSER / GEOSERVER_DBPASSWORD / GEOSERVER_DBHOST /
   GEOSERVER_DBPORT in geoserverConfig.sh (not mixed with WMS_DBUSER).
 
+  After install, sql/wms/grantGeoserverPermissions.sql runs automatically for GEOSERVER_DBUSER.
+  WMS_SKIP_GEOSERVER_GRANTS=1 skips that step (e.g. CI). If grants fail (e.g. need superuser),
+  the script prints the exact psql command for a DBA to run manually.
+
   Fallbacks from etc/properties.sh: DBNAME, DB_USER, DB_PASSWORD, DB_HOST, DB_PORT
 
 EOF
@@ -240,6 +247,16 @@ validate_prerequisites() {
   exit "${ERROR_MISSING_LIBRARY}"
  fi
 
+ if [[ ! -f "${WMS_GRANT_SQL}" ]]; then
+  print_status "${RED}" "❌ ERROR: GeoServer grant SQL file not found: ${WMS_GRANT_SQL}"
+  exit "${ERROR_MISSING_LIBRARY}"
+ fi
+
+ if [[ ! -r "${WMS_GRANT_SQL}" ]]; then
+  print_status "${RED}" "❌ ERROR: GeoServer grant SQL file is not readable: ${WMS_GRANT_SQL}"
+  exit "${ERROR_MISSING_LIBRARY}"
+ fi
+
  # Unix socket + peer: PostgreSQL maps OS user to DB role; -U other than whoami always fails.
  local __wms_tcp_host
  __wms_tcp_host="$(__wms_resolve_psql_host)"
@@ -259,7 +276,7 @@ validate_prerequisites() {
  # Test database connection first (BASH_XTRACEFD avoids bash -x polluting captured stderr)
  local psql_conn_err
  if ! psql_conn_err=$(
-  exec 3>/dev/null
+  exec 3> /dev/null
   export BASH_XTRACEFD=3
   __wms_psql_eval "${PSQL_CMD} -c \"SELECT 1;\"" 2>&1
  ); then
@@ -338,6 +355,68 @@ function __wms_validate_notes_owner_for_triggers() {
  fi
 }
 
+# Print psql command to apply GeoServer DB permissions manually (superuser / DBA).
+function __wms_print_manual_geoserver_grants() {
+ print_status "${YELLOW}" "Run the following as a PostgreSQL superuser or another role that can GRANT (and CREATE ROLE if needed). Adjust -h, -p, and -U for your environment:"
+ echo ""
+ echo "  psql -d \"${WMS_DB_NAME}\" -v ON_ERROR_STOP=1 -v \"read_role=${GEOSERVER_DBUSER}\" -f \"${WMS_GRANT_SQL}\""
+ echo ""
+ print_status "${YELLOW}" "Example using the local postgres OS account:"
+ echo "  sudo -u postgres psql -d \"${WMS_DB_NAME}\" -v ON_ERROR_STOP=1 -v \"read_role=${GEOSERVER_DBUSER}\" -f \"${WMS_GRANT_SQL}\""
+ echo ""
+}
+
+# Apply SELECT/CONNECT grants for the GeoServer datastore role after WMS objects exist.
+function __wms_apply_geoserver_grants() {
+ if [[ "${WMS_SKIP_GEOSERVER_GRANTS:-0}" == "1" ]]; then
+  print_status "${YELLOW}" "⚠️  Skipping GeoServer DB grants (WMS_SKIP_GEOSERVER_GRANTS=1)"
+  return 0
+ fi
+
+ if [[ ! -f "${WMS_GRANT_SQL}" ]]; then
+  print_status "${RED}" "❌ ERROR: GeoServer grant SQL not found: ${WMS_GRANT_SQL}"
+  __wms_print_manual_geoserver_grants
+  exit "${ERROR_GENERAL}"
+ fi
+
+ GEOSERVER_DBUSER="${GEOSERVER_DBUSER:-osm_notes_wms_user}"
+
+ if ! [[ "${GEOSERVER_DBUSER}" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]]; then
+  print_status "${RED}" "❌ ERROR: GEOSERVER_DBUSER must be a valid PostgreSQL identifier (letters, digits, underscore): ${GEOSERVER_DBUSER}"
+  __wms_print_manual_geoserver_grants
+  exit "${ERROR_GENERAL}"
+ fi
+
+ print_status "${BLUE}" "🔐 Applying GeoServer database permissions (read_role: ${GEOSERVER_DBUSER})..."
+
+ local PSQL_CMD
+ PSQL_CMD="$(__wms_build_psql_cmd)"
+
+ local grant_out
+ local grant_st
+ grant_st=0
+ grant_out=$(__wms_psql_eval "${PSQL_CMD} -v ON_ERROR_STOP=1 -v read_role=\"${GEOSERVER_DBUSER}\" -f \"${WMS_GRANT_SQL}\"" 2>&1) || grant_st=$?
+
+ if [[ -n "${grant_out}" ]]; then
+  echo "${grant_out}"
+ fi
+
+ if [[ "${grant_st}" -ne 0 ]]; then
+  print_status "${RED}" "❌ GeoServer database permissions could not be applied automatically."
+  if grep -qiE 'permission denied|must be superuser|InsufficientPrivilege|42501|only superusers|CREATEROLE' <<< "${grant_out}"; then
+   print_status "${YELLOW}" "   Hint: granting to another role or creating role geoserver may require a superuser or the database owner."
+  fi
+  if grep -qiE 'does not exist' <<< "${grant_out}"; then
+   print_status "${YELLOW}" "   If the datastore role is missing, create it first, for example:"
+   echo "     psql -d \"${WMS_DB_NAME}\" -c \"CREATE ROLE ${GEOSERVER_DBUSER} LOGIN PASSWORD 'your_password';\""
+  fi
+  __wms_print_manual_geoserver_grants
+  exit "${ERROR_GENERAL}"
+ fi
+
+ print_status "${GREEN}" "✅ GeoServer database permissions applied"
+}
+
 # Function to check if WMS is installed
 is_wms_installed() {
  local PSQL_CMD
@@ -396,6 +475,7 @@ install_wms() {
  # Use ON_ERROR_STOP to ensure errors are caught
  if eval "${PSQL_CMD} -v ON_ERROR_STOP=1 -f \"${WMS_PREPARE_SQL}\""; then
   print_status "${GREEN}" "✅ WMS installation completed successfully"
+  __wms_apply_geoserver_grants
   show_installation_summary
  else
   print_status "${RED}" "❌ ERROR: WMS installation failed"
