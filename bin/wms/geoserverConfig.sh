@@ -52,6 +52,7 @@ fi
 # Fallback exit codes when commonFunctions.sh is missing or older (set -u requires these)
 if [[ -z "${ERROR_GENERAL:-}" ]]; then declare -r ERROR_GENERAL=255; fi
 if [[ -z "${ERROR_MISSING_LIBRARY:-}" ]]; then declare -r ERROR_MISSING_LIBRARY=241; fi
+if [[ -z "${ERROR_INVALID_ARGUMENT:-}" ]]; then declare -r ERROR_INVALID_ARGUMENT=242; fi
 export SCHEMA_CONSUMER="${SCHEMA_CONSUMER:-wms}"
 
 # Load common functions (provides __validate_input_file, etc.)
