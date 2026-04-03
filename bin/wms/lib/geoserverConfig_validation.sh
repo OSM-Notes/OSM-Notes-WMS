@@ -5,6 +5,10 @@
 # Author: Andres Gomez (AngocA)
 # Version: 2026-03-28
 
+# Exit codes if this file is sourced without commonFunctions.sh (set -u)
+if [[ -z "${ERROR_GENERAL:-}" ]]; then declare -r ERROR_GENERAL=255; fi
+if [[ -z "${ERROR_MISSING_LIBRARY:-}" ]]; then declare -r ERROR_MISSING_LIBRARY=241; fi
+
 # Function to validate prerequisites
 validate_prerequisites() {
  print_status "${BLUE}" "🔍 Validating prerequisites..."
