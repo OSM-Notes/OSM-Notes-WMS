@@ -240,13 +240,29 @@ validate_prerequisites() {
   exit "${ERROR_MISSING_LIBRARY}"
  fi
 
+ # Unix socket + peer: PostgreSQL maps OS user to DB role; -U other than whoami always fails.
+ local __wms_tcp_host
+ __wms_tcp_host="$(__wms_resolve_psql_host)"
+ if [[ -z "${__wms_tcp_host}" ]]; then
+  if [[ -n "${WMS_DB_USER}" ]] && [[ "${WMS_DB_USER}" != "$(whoami)" ]]; then
+   print_status "${RED}" "❌ ERROR: Peer authentication requires your OS login to match WMS_DBUSER (${WMS_DB_USER})."
+   print_status "${YELLOW}" "   You are $(whoami). Examples: sudo -u ${WMS_DB_USER} -- $0 install"
+   print_status "${YELLOW}" "   Or use TCP with password: set WMS_DBHOST, WMS_DBPORT, and WMS_DBPASSWORD."
+   exit "${ERROR_GENERAL}"
+  fi
+ fi
+
  # Check database connection and PostGIS (TCP + password when needed — see __wms_resolve_psql_host)
  local PSQL_CMD
  PSQL_CMD="$(__wms_build_psql_cmd)"
 
- # Test database connection first (capture psql output on failure — real error was hidden by /dev/null)
+ # Test database connection first (BASH_XTRACEFD avoids bash -x polluting captured stderr)
  local psql_conn_err
- if ! psql_conn_err=$(__wms_psql_eval "${PSQL_CMD} -c \"SELECT 1;\"" 2>&1); then
+ if ! psql_conn_err=$(
+  exec 3>/dev/null
+  export BASH_XTRACEFD=3
+  __wms_psql_eval "${PSQL_CMD} -c \"SELECT 1;\"" 2>&1
+ ); then
   local conn_disp
   conn_disp="$(__wms_resolve_psql_host)"
   if [[ -n "${conn_disp}" ]]; then
