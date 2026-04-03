@@ -225,10 +225,18 @@ run_psql() {
   fi
   # Create view first
   psql -d "${TEST_DBNAME}" -c "CREATE SCHEMA IF NOT EXISTS wms;" 2> /dev/null || true
-  # Insert maritime zone (with parentheses in name)
+  # Ensure countries exists (manual test DB fallback may not create it)
   psql -d "${TEST_DBNAME}" -c "
-    INSERT INTO countries (country_id, country_name_en, geom) VALUES
-    (5, 'Maritime Zone (International)', ST_MakeEnvelope(60, 60, 70, 70, 4326));
+    CREATE TABLE IF NOT EXISTS countries (
+      country_id INTEGER PRIMARY KEY,
+      country_name_en VARCHAR(100),
+      country_name VARCHAR(100) NOT NULL,
+      geom GEOMETRY(MultiPolygon, 4326)
+    );
+    DELETE FROM countries WHERE country_id = 5;
+    INSERT INTO countries (country_id, country_name_en, country_name, geom) VALUES
+    (5, 'Maritime Zone (International)', 'Maritime Zone (International)',
+     ST_SetSRID(ST_Multi(ST_MakeEnvelope(60, 60, 70, 70, 4326)), 4326)::geometry(MultiPolygon,4326));
   " 2> /dev/null || true
   local prepare_sql="${SCRIPT_BASE_DIRECTORY}/sql/wms/prepareDatabase.sql"
   if [[ -f "${prepare_sql}" ]]; then
@@ -248,14 +256,19 @@ run_psql() {
   fi
   # Create view first
   psql -d "${TEST_DBNAME}" -c "CREATE SCHEMA IF NOT EXISTS wms;" 2> /dev/null || true
-  # Insert overlapping countries and maritime zones
-  # Country A overlaps with Country B (should create disputed area)
-  # Maritime zone overlaps with Country A (should NOT create disputed area)
+  # Ensure countries exists and rows match prepareDatabase.sql (country_name NOT NULL, MultiPolygon geom)
   psql -d "${TEST_DBNAME}" -c "
-    INSERT INTO countries (country_id, country_name_en, geom) VALUES
-    (1, 'Country A', ST_MakeEnvelope(0, 0, 10, 10, 4326)),
-    (2, 'Country B', ST_MakeEnvelope(5, 5, 15, 15, 4326)),
-    (3, 'Country A (200nm EEZ)', ST_MakeEnvelope(-5, -5, 15, 15, 4326));
+    CREATE TABLE IF NOT EXISTS countries (
+      country_id INTEGER PRIMARY KEY,
+      country_name_en VARCHAR(100),
+      country_name VARCHAR(100) NOT NULL,
+      geom GEOMETRY(MultiPolygon, 4326)
+    );
+    DELETE FROM countries WHERE country_id IN (1, 2, 3);
+    INSERT INTO countries (country_id, country_name_en, country_name, geom) VALUES
+    (1, 'Country A', 'Country A', ST_SetSRID(ST_Multi(ST_MakeEnvelope(0, 0, 10, 10, 4326)), 4326)::geometry(MultiPolygon,4326)),
+    (2, 'Country B', 'Country B', ST_SetSRID(ST_Multi(ST_MakeEnvelope(5, 5, 15, 15, 4326)), 4326)::geometry(MultiPolygon,4326)),
+    (3, 'Country A (200nm EEZ)', 'Country A (200nm EEZ)', ST_SetSRID(ST_Multi(ST_MakeEnvelope(-5, -5, 15, 15, 4326)), 4326)::geometry(MultiPolygon,4326));
   " 2> /dev/null || true
   local prepare_sql="${SCRIPT_BASE_DIRECTORY}/sql/wms/prepareDatabase.sql"
   if [[ -f "${prepare_sql}" ]]; then

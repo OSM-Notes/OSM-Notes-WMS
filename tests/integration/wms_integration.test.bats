@@ -4,9 +4,13 @@
 #
 # Author: Andres Gomez (AngocA)
 # Version: 2026-03-28
+
+bats_require_minimum_version 1.5.0
+# Load before setup so functions defined below (e.g. create_mock_wms_script) are not
+# overwritten when setup() sourced test_helper.
+load "$(dirname "${BATS_TEST_FILENAME}")/../test_helper.bash"
+
 setup() {
- # Load test helper functions
- load "${BATS_TEST_DIRNAME}/../test_helper.bash"
  # Set up test environment - use current user for local database
  export TEST_DBNAME="osm_notes_wms_test"
  export TEST_DBUSER="${USER:-$(whoami)}"
@@ -14,6 +18,12 @@ setup() {
  export TEST_DBHOST=""
  export TEST_DBPORT=""
  export MOCK_MODE=0
+ # Choose mock vs real WMS before WMS_SCRIPT is set: late MOCK_MODE flips used to
+ # leave WMS_SCRIPT pointing at bin/wms/wmsManager.sh while tests expected mocks.
+ if ! command -v psql > /dev/null 2>&1 \
+  || ! psql -d postgres -c "SELECT 1;" > /dev/null 2>&1; then
+  export MOCK_MODE=1
+ fi
  # Provide mock PostgreSQL client tools ONLY when running in mock mode
  local WMS_TMP_DIR
  WMS_TMP_DIR="$(mktemp -d)"
@@ -69,12 +79,6 @@ create_wms_test_database() {
   echo "Mock mode enabled, skipping real database creation"
   return 0
  fi
- # Check if PostgreSQL is available
- if ! psql -d postgres -c "SELECT 1;" > /dev/null 2>&1; then
-  echo "PostgreSQL not available, using mock commands"
-  export MOCK_MODE=1
-  return 0
- fi
  # Check if database exists, if not create it
  if ! psql -d "${TEST_DBNAME}" -c "SELECT 1;" > /dev/null 2>&1; then
   createdb "${TEST_DBNAME}" 2> /dev/null || true
@@ -99,6 +103,18 @@ create_wms_test_database() {
     (2, '2023-02-01 11:00:00', '2023-02-15 12:00:00', -118.2437, 34.0522),
     (3, '2023-03-01 09:00:00', NULL, 2.3522, 48.8566)
     ON CONFLICT (note_id) DO NOTHING;
+  " 2> /dev/null || true
+ # Countries shape expected by sql/wms/prepareDatabase.sql (disputed areas MV)
+ psql -d "${TEST_DBNAME}" -c "
+    DROP TABLE IF EXISTS countries CASCADE;
+    CREATE TABLE countries (
+      country_id INTEGER PRIMARY KEY,
+      country_name_en VARCHAR(100),
+      country_name VARCHAR(100) NOT NULL,
+      geom GEOMETRY(MultiPolygon, 4326)
+    );
+    INSERT INTO countries (country_id, country_name_en, country_name, geom) VALUES
+      (1, 'Test', 'Test', ST_SetSRID(ST_Multi(ST_GeomFromText('POLYGON((-1 -1, 2 -1, 2 2, -1 2, -1 -1))')), 4326)::geometry(MultiPolygon,4326));
   " 2> /dev/null || true
  psql -d "${TEST_DBNAME}" -v ON_ERROR_STOP=1 -c "
 CREATE TABLE IF NOT EXISTS schema_version (
@@ -320,8 +336,7 @@ EOF
  run "$WMS_SCRIPT" remove
  # Install WMS
  run "$WMS_SCRIPT" install
- # Accept any non-fatal exit code (< 128)
- [ "$status" -lt 128 ]
+ [ "$status" -eq 0 ]
  # Verify WMS schema exists (mock mode)
  if [[ "${MOCK_MODE:-0}" == "1" ]]; then
   # In mock mode, we just verify the installation was successful
@@ -352,10 +367,10 @@ EOF
  export PGPASSWORD="${TEST_DBPASSWORD}"
  # Install WMS first
  run "$WMS_SCRIPT" install
- [ "$status" -lt 128 ]
+ [ "$status" -eq 0 ]
  # Check status
  run "$WMS_SCRIPT" status
- [ "$status" -lt 128 ]
+ [ "$status" -eq 0 ]
  [[ "$output" == *"WMS is installed"* ]] || [[ "$output" == *"✅ WMS is installed"* ]]
  [[ "$output" == *"WMS Statistics"* ]] || [[ "$output" == *"Statistics"* ]]
  # Verify note count (mock mode)
@@ -382,10 +397,10 @@ EOF
  export PGPASSWORD="${TEST_DBPASSWORD}"
  # Install WMS first
  run "$WMS_SCRIPT" install
- [ "$status" -lt 128 ]
+ [ "$status" -eq 0 ]
  # Try to install again
  run "$WMS_SCRIPT" install
- [ "$status" -lt 128 ]
+ [ "$status" -eq 0 ]
  [[ "$output" == *"already installed"* ]] || [[ "$output" == *"WMS is already installed"* ]] || [[ "$output" == *"⚠️"* ]]
  [[ "$output" == *"Use --force"* ]] || [[ "$output" == *"--force"* ]]
 }
@@ -400,10 +415,10 @@ EOF
  export PGPASSWORD="${TEST_DBPASSWORD}"
  # Install WMS first
  run "$WMS_SCRIPT" install
- [ "$status" -lt 128 ]
+ [ "$status" -eq 0 ]
  # Force reinstall
  run "$WMS_SCRIPT" install --force
- [ "$status" -lt 128 ]
+ [ "$status" -eq 0 ]
  [[ "$output" == *"installation completed successfully"* ]] || [[ "$output" == *"WMS installation completed successfully"* ]] || [[ "$output" == *"✅"* ]]
 }
 @test "WMS integration: should deinstall WMS components successfully" {
@@ -417,10 +432,10 @@ EOF
  export PGPASSWORD="${TEST_DBPASSWORD}"
  # Install WMS first
  run "$WMS_SCRIPT" install
- [ "$status" -lt 128 ]
+ [ "$status" -eq 0 ]
  # Remove WMS
  run "$WMS_SCRIPT" remove
- [ "$status" -lt 128 ]
+ [ "$status" -eq 0 ]
  [[ "$output" == *"removal completed successfully"* ]] || [[ "$output" == *"WMS removal completed successfully"* ]] || [[ "$output" == *"✅"* ]]
  # Verify WMS schema is removed (mock mode)
  if [[ "${MOCK_MODE:-0}" == "1" ]]; then
@@ -444,7 +459,7 @@ EOF
  export PGPASSWORD="${TEST_DBPASSWORD}"
  # Try to remove when not installed
  run "$WMS_SCRIPT" remove
- [ "$status" -lt 128 ]
+ [ "$status" -eq 0 ]
  [[ "$output" == *"not installed"* ]] || [[ "$output" == *"WMS is not installed"* ]] || [[ "$output" == *"⚠️"* ]]
 }
 @test "WMS integration: should show dry run output" {
@@ -458,7 +473,7 @@ EOF
  export PGPASSWORD="${TEST_DBPASSWORD}"
  # Test dry run
  run "$WMS_SCRIPT" install --dry-run
- [ "$status" -lt 128 ]
+ [ "$status" -eq 0 ]
  [[ "$output" == *"DRY RUN"* ]] || [[ "$output" == *"Would install"* ]] || [[ "$output" == *"dry-run"* ]]
 }
 @test "WMS integration: should validate PostGIS requirement" {
@@ -521,7 +536,7 @@ EOF
  if [[ "${MOCK_MODE:-0}" == "1" ]]; then
   # Try to install WMS in mock mode
   run "$WMS_SCRIPT" install
-  [ "$status" -lt 128 ]
+  [ "$status" -eq 0 ]
   [[ "$output" == *"installation completed successfully"* ]] || [[ "$output" == *"WMS installation completed successfully"* ]]
   return 0
  fi

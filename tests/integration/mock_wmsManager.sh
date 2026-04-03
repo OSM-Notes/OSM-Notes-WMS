@@ -92,7 +92,7 @@ main() {
   local DRY_RUN=false
   while [[ $# -gt 0 ]]; do
     case $1 in
-      install | deinstall | status | help)
+      install | remove | status | help)
         COMMAND="$1"
         shift
         ;;
@@ -119,7 +119,7 @@ main() {
     install)
       install_wms
       ;;
-    deinstall)
+    remove)
       deinstall_wms
       ;;
     status)
