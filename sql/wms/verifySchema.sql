@@ -165,7 +165,7 @@ SELECT
   pg_catalog.format_type(a.atttypid, a.atttypmod) AS data_type,
   CASE WHEN a.attnotnull THEN 'NO' ELSE 'YES' END AS is_nullable,
   CASE 
-    WHEN a.attname IN ('country_id', 'geom') THEN '✅ Required'
+    WHEN a.attname IN ('country_id', 'geom', 'is_maritime') THEN '✅ Required'
     WHEN a.attname IN ('country_name', 'country_name_en') THEN '✅ Required'
     ELSE 'ℹ️  Other'
   END AS status
@@ -176,10 +176,10 @@ WHERE n.nspname = 'public'
   AND c.relname = 'countries'
   AND a.attnum > 0
   AND NOT a.attisdropped
-  AND a.attname IN ('country_id', 'country_name', 'country_name_en', 'geom')
+  AND a.attname IN ('country_id', 'country_name', 'country_name_en', 'geom', 'is_maritime')
 ORDER BY 
   CASE 
-    WHEN a.attname IN ('country_id', 'geom') THEN 1
+    WHEN a.attname IN ('country_id', 'geom', 'is_maritime') THEN 1
     WHEN a.attname IN ('country_name', 'country_name_en') THEN 2
     ELSE 3
   END,
@@ -203,7 +203,7 @@ BEGIN
     SELECT ARRAY_AGG(required_col)
     INTO missing_columns
     FROM (
-      SELECT unnest(ARRAY['country_id', 'geom']) AS required_col
+      SELECT unnest(ARRAY['country_id', 'geom', 'is_maritime']) AS required_col
     ) req
     WHERE NOT EXISTS (
       SELECT 1

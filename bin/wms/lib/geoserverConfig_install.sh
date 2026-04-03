@@ -257,7 +257,7 @@ install_geoserver_config() {
  local COUNTRIES_LAYER_NAME="countries"
  local COUNTRIES_TITLE="Countries and Maritime Areas"
  local COUNTRIES_DESCRIPTION="Country boundaries and maritime zones from OpenStreetMap"
- local COUNTRIES_SQL="SELECT country_id, country_name, country_name_en, geom AS geometry FROM public.countries ORDER BY country_name"
+ local COUNTRIES_SQL="SELECT country_id, country_name, country_name_en, is_maritime, geom AS geometry FROM public.countries ORDER BY country_name"
  if create_sql_view_layer "${COUNTRIES_LAYER_NAME}" "${COUNTRIES_SQL}" "${COUNTRIES_TITLE}" "${COUNTRIES_DESCRIPTION}" "geometry"; then
   # Extract actual style name from SLD
   local COUNTRIES_STYLE_NAME
