@@ -116,7 +116,7 @@ BEGIN
           extract (year from closed_at) AS year_closed_at,
           id_country,
           CASE
-            WHEN id_country IS NOT NULL AND id_country > 0 THEN id_country % 12
+            WHEN id_country IS NOT NULL AND id_country > 0 THEN id_country % 6
             ELSE NULL
           END AS country_shape_mod,
           ST_SetSRID(ST_MakePoint(longitude, latitude), 4326) AS geometry
@@ -147,7 +147,7 @@ BEGIN
           extract (year from closed_at) AS year_closed_at,
           id_country,
           CASE
-            WHEN id_country IS NOT NULL AND id_country > 0 THEN id_country % 12
+            WHEN id_country IS NOT NULL AND id_country > 0 THEN id_country % 6
             ELSE NULL
           END AS country_shape_mod,
           ST_SetSRID(ST_MakePoint(longitude, latitude), 4326) AS geometry
@@ -211,7 +211,7 @@ COMMENT ON COLUMN wms.notes_wms.year_closed_at IS
 COMMENT ON COLUMN wms.notes_wms.id_country IS
   'Country id where the note is located (NULL for unclaimed/disputed areas)';
 COMMENT ON COLUMN wms.notes_wms.country_shape_mod IS
-  'Modulo 12 of id_country for shape assignment (0-11, NULL if no country)';
+  'Modulo 6 of id_country for shape assignment (0-5, NULL if no country)';
 COMMENT ON COLUMN wms.notes_wms.geometry IS 'Location of the note';
 
 -- Index for open notes. The most important.
@@ -647,7 +647,7 @@ COMMENT ON COLUMN public.notes_open_view.age_years IS
 COMMENT ON COLUMN public.notes_open_view.id_country IS
   'Country id where the note is located (NULL for unclaimed/disputed areas)';
 COMMENT ON COLUMN public.notes_open_view.country_shape_mod IS
-  'Modulo 12 of id_country for shape assignment (0-11, NULL if no country)';
+  'Modulo 6 of id_country for shape assignment (0-5, NULL if no country)';
 
 CREATE OR REPLACE VIEW public.notes_closed_view AS
 SELECT
@@ -671,7 +671,7 @@ COMMENT ON COLUMN public.notes_closed_view.years_since_closed IS
 COMMENT ON COLUMN public.notes_closed_view.id_country IS
   'Country id where the note is located (NULL for unclaimed/disputed areas)';
 COMMENT ON COLUMN public.notes_closed_view.country_shape_mod IS
-  'Modulo 12 of id_country for shape assignment (0-11, NULL if no country)';
+  'Modulo 6 of id_country for shape assignment (0-5, NULL if no country)';
 
 -- Create view for disputed and unclaimed areas (for GeoServer layer)
 -- Note: View is created in 'public' schema to simplify GeoServer datastore
