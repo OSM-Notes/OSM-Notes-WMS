@@ -220,6 +220,8 @@ install_geoserver_config() {
   print_status "${YELLOW}" "⚠️  ${STYLE_ERRORS} style(s) failed to upload, continuing with --force"
  fi
 
+ OPTIONAL_DISPUTED_TERRITORIES_CREATED=false
+
  # Create layer 1: Open Notes (direct view - no schema prefix since datastore uses public)
  # Datastore is configured with schema='public', so we can reference views directly
  print_status "${BLUE}" "📊 Creating layer 1/4: Open Notes..."
@@ -283,6 +285,52 @@ install_geoserver_config() {
   assign_style_to_layer "${DISPUTED_LAYER_NAME}" "${DISPUTED_STYLE_NAME}"
  fi
 
+ # Optional layer: curated disputed territories from OSM-Notes-Ingestion
+ # This table is optional and may not exist until Ingestion runs the dedicated job.
+ local HAS_DISPUTED_TERRITORIES=false
+ local PSQL_CMD="psql -d \"${DBNAME}\" -t -A"
+ if [[ -n "${DBHOST}" ]]; then
+  PSQL_CMD="psql -h \"${DBHOST}\" -d \"${DBNAME}\" -t -A"
+ fi
+ if [[ -n "${DBUSER}" ]]; then
+  PSQL_CMD="${PSQL_CMD} -U \"${DBUSER}\""
+ fi
+ if [[ -n "${DBPORT}" ]]; then
+  PSQL_CMD="${PSQL_CMD} -p \"${DBPORT}\""
+ fi
+ if [[ -n "${DBPASSWORD}" ]]; then
+  export PGPASSWORD="${DBPASSWORD}"
+ else
+  unset PGPASSWORD 2> /dev/null || true
+ fi
+ local HAS_DISPUTED_TABLE
+ HAS_DISPUTED_TABLE=$(eval "${PSQL_CMD} -c \"SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'disputed_territories_wms');\"" 2> /dev/null | tr -d '[:space:]' || echo "f")
+ if [[ -n "${DBPASSWORD}" ]]; then
+  unset PGPASSWORD 2> /dev/null || true
+ fi
+ if [[ "${HAS_DISPUTED_TABLE}" == "t" ]]; then
+  HAS_DISPUTED_TERRITORIES=true
+ fi
+
+ if [[ "${HAS_DISPUTED_TERRITORIES}" == "true" ]]; then
+  print_status "${BLUE}" "📊 Creating optional layer: Disputed Territories (Ingestion)..."
+  local DISPUTED_TERRITORIES_LAYER_NAME="disputedterritories"
+  local DISPUTED_TERRITORIES_SQL="SELECT id, kind::text AS kind, name, description, reference_url, updated_at, geom AS geometry FROM public.disputed_territories_wms WHERE geom IS NOT NULL ORDER BY kind, name"
+  if create_sql_view_layer "${DISPUTED_TERRITORIES_LAYER_NAME}" "${DISPUTED_TERRITORIES_SQL}" "Disputed Territories (Ingestion)" "Curated disputed/unclaimed territories provided by OSM-Notes-Ingestion." "geometry"; then
+   OPTIONAL_DISPUTED_TERRITORIES_CREATED=true
+   # Reuse the disputed style as fallback until a dedicated style is provided.
+   local DISPUTED_STYLE_NAME
+   DISPUTED_STYLE_NAME=$(extract_style_name_from_sld "${WMS_STYLE_DISPUTED_FILE}")
+   if [[ -z "${DISPUTED_STYLE_NAME}" ]]; then
+    DISPUTED_STYLE_NAME="${WMS_STYLE_DISPUTED_NAME}"
+   fi
+   assign_style_to_layer "${DISPUTED_TERRITORIES_LAYER_NAME}" "${DISPUTED_STYLE_NAME}"
+  fi
+ else
+  print_status "${YELLOW}" "⚠️  Optional layer skipped: public.disputed_territories_wms not found"
+  print_status "${YELLOW}" "   Run OSM-Notes-Ingestion disputed territories update to enable it."
+ fi
+
  print_status "${GREEN}" "✅ GeoServer configuration completed successfully"
  show_configuration_summary
 
@@ -343,4 +391,9 @@ show_configuration_summary() {
  print_status "${BLUE}" "   2. ${GEOSERVER_WORKSPACE}:notesclosed (Closed Notes)"
  print_status "${BLUE}" "   3. ${GEOSERVER_WORKSPACE}:countries (Countries)"
  print_status "${BLUE}" "   4. ${GEOSERVER_WORKSPACE}:disputedareas (Disputed/Unclaimed Areas)"
+ if [[ "${OPTIONAL_DISPUTED_TERRITORIES_CREATED:-false}" == "true" ]]; then
+  print_status "${BLUE}" "   5. ${GEOSERVER_WORKSPACE}:disputedterritories (Disputed Territories from Ingestion)"
+ else
+  print_status "${BLUE}" "   5. ${GEOSERVER_WORKSPACE}:disputedterritories (optional; not created)"
+ fi
 }

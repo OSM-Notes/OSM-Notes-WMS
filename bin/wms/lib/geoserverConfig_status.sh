@@ -73,8 +73,8 @@ show_status() {
  # Check layers
  print_status "${BLUE}" ""
  print_status "${BLUE}" "📊 Checking layers..."
- local LAYERS=("notesopen" "notesclosed" "countries" "disputedareas")
- local LAYER_NAMES=("Open Notes" "Closed Notes" "Countries" "Disputed/Unclaimed Areas")
+ local LAYERS=("notesopen" "notesclosed" "countries" "disputedareas" "disputedterritories")
+ local LAYER_NAMES=("Open Notes" "Closed Notes" "Countries" "Disputed/Unclaimed Areas" "Disputed Territories (Ingestion)")
  local LAYER_COUNT=0
  for I in "${!LAYERS[@]}"; do
   local LAYER_NAME="${LAYERS[$I]}"
@@ -97,7 +97,7 @@ show_status() {
   local WMS_URL="${GEOSERVER_URL}/wms"
   print_status "${BLUE}" ""
   print_status "${BLUE}" "🌐 WMS Service URL: ${WMS_URL}"
-  print_status "${BLUE}" "📋 Available layers: ${LAYER_COUNT}/4"
+  print_status "${BLUE}" "📋 Available layers: ${LAYER_COUNT}/5"
  fi
 
  # Show web interface URLs

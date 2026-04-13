@@ -2,7 +2,7 @@
 title: "OSM-Notes-WMS"
 description: "Web Map Service (WMS) for OpenStreetMap Notes"
 version: "latest"
-last_updated: "2026-01-25"
+last_updated: "2026-04-06"
 author: "AngocA"
 tags:
   - "wms"
@@ -56,6 +56,7 @@ For shared documentation of the complete ecosystem, see:
 - **[Complete Installation Guide](https://github.com/OSM-Notes/OSM-Notes-Common/blob/main/docs/Installation.md)** - Step-by-step installation of all projects
 - **[End-to-End Data Flow](https://github.com/OSM-Notes/OSM-Notes-Common/blob/main/docs/Data_Flow.md)** - Complete data flow
 - **[Decision Guide](https://github.com/OSM-Notes/OSM-Notes-Common/blob/main/docs/Decision_Guide.md)** - Which project do I need?
+- **[Ingestion disputed territories table](./docs/Ingestion_Disputed_Territories_WMS.md)** - Optional `disputed_territories_wms` layer from OSM-Notes-Ingestion
 
 ---
 

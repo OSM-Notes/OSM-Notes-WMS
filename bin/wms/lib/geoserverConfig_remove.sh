@@ -107,7 +107,7 @@ remove_geoserver_config() {
  # Step 1: Remove all layers first (they depend on feature types)
  # GeoServer requires removing layers before feature types
  print_status "${BLUE}" "🗑️  Removing layers..."
- local LAYERS=("notesopen" "notesclosed" "countries" "disputedareas")
+ local LAYERS=("notesopen" "notesclosed" "countries" "disputedareas" "disputedterritories")
  for LAYER_NAME in "${LAYERS[@]}"; do
   local LAYER_URL="${GEOSERVER_URL}/rest/layers/${GEOSERVER_WORKSPACE}:${LAYER_NAME}"
   local HTTP_CODE

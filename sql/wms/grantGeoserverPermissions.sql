@@ -69,6 +69,18 @@ BEGIN
   ) THEN
     EXECUTE 'GRANT SELECT ON TABLE public.disputed_areas_view TO geoserver';
   END IF;
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'disputed_territories_wms'
+  ) THEN
+    EXECUTE 'GRANT SELECT ON TABLE public.disputed_territories_wms TO geoserver';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM information_schema.views
+    WHERE table_schema = 'public' AND table_name = 'disputed_territories_wms_view'
+  ) THEN
+    EXECUTE 'GRANT SELECT ON TABLE public.disputed_territories_wms_view TO geoserver';
+  END IF;
   RAISE NOTICE 'Grants applied to geoserver';
 END
 $ggeo$;
@@ -119,6 +131,18 @@ BEGIN
     WHERE table_schema = 'public' AND table_name = 'disputed_areas_view'
   ) THEN
     EXECUTE format('GRANT SELECT ON TABLE public.disputed_areas_view TO %I', r);
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'disputed_territories_wms'
+  ) THEN
+    EXECUTE format('GRANT SELECT ON TABLE public.disputed_territories_wms TO %I', r);
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM information_schema.views
+    WHERE table_schema = 'public' AND table_name = 'disputed_territories_wms_view'
+  ) THEN
+    EXECUTE format('GRANT SELECT ON TABLE public.disputed_territories_wms_view TO %I', r);
   END IF;
   RAISE NOTICE 'Grants applied to %', r;
 END
