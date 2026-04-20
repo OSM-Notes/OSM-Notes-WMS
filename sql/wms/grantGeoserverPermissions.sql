@@ -40,6 +40,12 @@ BEGIN
   END IF;
   EXECUTE format('GRANT CONNECT ON DATABASE %I TO geoserver', current_database());
   EXECUTE 'GRANT USAGE ON SCHEMA public TO geoserver';
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'schema_version'
+  ) THEN
+    EXECUTE 'GRANT SELECT ON TABLE public.schema_version TO geoserver';
+  END IF;
   EXECUTE 'GRANT USAGE ON SCHEMA wms TO geoserver';
   EXECUTE 'GRANT SELECT ON ALL TABLES IN SCHEMA wms TO geoserver';
   EXECUTE 'GRANT SELECT ON ALL SEQUENCES IN SCHEMA wms TO geoserver';
@@ -103,6 +109,12 @@ BEGIN
   END IF;
   EXECUTE format('GRANT CONNECT ON DATABASE %I TO %I', current_database(), r);
   EXECUTE format('GRANT USAGE ON SCHEMA public TO %I', r);
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'schema_version'
+  ) THEN
+    EXECUTE format('GRANT SELECT ON TABLE public.schema_version TO %I', r);
+  END IF;
   EXECUTE format('GRANT USAGE ON SCHEMA wms TO %I', r);
   EXECUTE format('GRANT SELECT ON ALL TABLES IN SCHEMA wms TO %I', r);
   EXECUTE format('GRANT SELECT ON ALL SEQUENCES IN SCHEMA wms TO %I', r);

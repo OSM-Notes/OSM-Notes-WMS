@@ -109,8 +109,8 @@ fi
 
 # Use WMS properties for configuration
 # Database connection for GeoServer only (separate from wmsManager.sh install user)
-# - GeoServer datastore: GEOSERVER_DB* + WMS_DBNAME (shared DB name)
-DBNAME="${WMS_DBNAME:-notes}"
+# - GeoServer datastore: GEOSERVER_DB* + same DB name as wmsManager (WMS_DBNAME, else DBNAME from properties.sh)
+DBNAME="${WMS_DBNAME:-${DBNAME:-notes}}"
 DBUSER="${GEOSERVER_DBUSER:-osm_notes_wms_user}"
 DBPASSWORD="${GEOSERVER_DBPASSWORD:-}"
 DBHOST="${GEOSERVER_DBHOST:-localhost}"
