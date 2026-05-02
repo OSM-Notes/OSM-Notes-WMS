@@ -28,18 +28,24 @@ Source names and optional geometry hints:
 
 ## GeoServer (high level)
 
-1. Ensure the ingestion refresh has run at least once so the table exists and
-   `geom` is populated where hints exist.
+1. Ensure **`bin/process/updateDisputedTerritoriesWMS.sh`** has run at least once
+   so **`public.disputed_territories_wms`** exists, geometries are refreshed where
+   hints exist, and **`public.disputed_territories_wms_view`** is created (only
+   rows with geometry; **`geom`** exposed as **`geometry`** for tooling such as
+   OSM-Notes-WMS bbox helpers).
 2. Add a **feature type** on the existing PostGIS datastore pointing to
-   `public.disputed_territories_wms`.
-3. Publish a layer (e.g. `disputed_territories_wms`). Use an SLD that filters
-   `geom IS NOT NULL` if you want to hide rows without geometry.
-4. Grant the GeoServer DB role `SELECT` on the table (same pattern as
-   `sql/wms/grantGeoserverPermissions.sql` for other objects).
+   **`public.disputed_territories_wms_view`** (preferred). If you must target the
+   base table, filter **`geom IS NOT NULL`** in the layer definition or SLD.
+3. **`wmsManager.sh install`** / **`geoserverConfig_install`** publishes optional
+   layer **`disputedterritories`** from the view when it exists; otherwise it
+   falls back to an inline SQL layer on **`disputed_territories_wms`**.
+4. Grant the GeoServer DB role **`SELECT`** on the view (and table if used); see
+   **`sql/wms/grantGeoserverPermissions.sql`**.
 
-## SQL view (optional)
+## SQL view (ingestion-maintained)
 
-If you prefer a stable view name for WMS:
+The refresh script applies **`sql/wms/disputed_territories_wms_03_create_view.sql`**
+in **OSM-Notes-Ingestion**. Manual recreate (same definition):
 
 ```sql
 CREATE OR REPLACE VIEW public.disputed_territories_wms_view AS
@@ -48,17 +54,15 @@ SELECT
   kind::text AS kind,
   name,
   description,
-  geom,
+  geom AS geometry,
   reference_url,
   updated_at
 FROM public.disputed_territories_wms
 WHERE geom IS NOT NULL;
 
 COMMENT ON VIEW public.disputed_territories_wms_view IS
-  'WMS-friendly view: only rows with geometry (from OSM-Notes-Ingestion refresh).';
+  'WMS-friendly view: only rows with geometry (from disputed_territories_wms refresh).';
 ```
-
-Adjust schema (`public` vs `wms`) to match your deployment conventions.
 
 ## Difference from `wms.disputed_and_unclaimed_areas`
 
@@ -75,4 +79,4 @@ missing, skip publishing until ingestion `--init` has been run.
 
 ---
 **Author:** Andres Gomez (AngocA)  
-**Version:** 2026-04-06
+**Version:** 2026-05-01

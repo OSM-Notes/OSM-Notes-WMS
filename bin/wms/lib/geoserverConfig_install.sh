@@ -3,7 +3,7 @@
 # Functions for installing GeoServer configuration
 #
 # Author: Andres Gomez (AngocA)
-# Version: 2025-12-29
+# Version: 2026-05-01
 # Function to install GeoServer configuration
 install_geoserver_config() {
  print_status "${BLUE}" "🚀 Installing GeoServer configuration..."
@@ -303,20 +303,34 @@ install_geoserver_config() {
  else
   unset PGPASSWORD 2> /dev/null || true
  fi
+ local HAS_DISPUTED_VIEW
+ HAS_DISPUTED_VIEW=$(eval "${PSQL_CMD} -c \"SELECT EXISTS(SELECT 1 FROM information_schema.views WHERE table_schema = 'public' AND table_name = 'disputed_territories_wms_view');\"" 2> /dev/null | tr -d '[:space:]' || echo "f")
  local HAS_DISPUTED_TABLE
  HAS_DISPUTED_TABLE=$(eval "${PSQL_CMD} -c \"SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'disputed_territories_wms');\"" 2> /dev/null | tr -d '[:space:]' || echo "f")
  if [[ -n "${DBPASSWORD}" ]]; then
   unset PGPASSWORD 2> /dev/null || true
  fi
- if [[ "${HAS_DISPUTED_TABLE}" == "t" ]]; then
+ if [[ "${HAS_DISPUTED_VIEW}" == "t" ]] || [[ "${HAS_DISPUTED_TABLE}" == "t" ]]; then
   HAS_DISPUTED_TERRITORIES=true
  fi
 
  if [[ "${HAS_DISPUTED_TERRITORIES}" == "true" ]]; then
   print_status "${BLUE}" "📊 Creating optional layer: Disputed Territories (Ingestion)..."
   local DISPUTED_TERRITORIES_LAYER_NAME="disputedterritories"
-  local DISPUTED_TERRITORIES_SQL="SELECT id, kind::text AS kind, name, description, reference_url, updated_at, geom AS geometry FROM public.disputed_territories_wms WHERE geom IS NOT NULL ORDER BY kind, name"
-  if create_sql_view_layer "${DISPUTED_TERRITORIES_LAYER_NAME}" "${DISPUTED_TERRITORIES_SQL}" "Disputed Territories (Ingestion)" "Curated disputed/unclaimed territories provided by OSM-Notes-Ingestion." "geometry"; then
+  local DISPUTED_TERRITORIES_CREATED_THIS_RUN=false
+  if [[ "${HAS_DISPUTED_VIEW}" == "t" ]]; then
+   print_status "${BLUE}" "   Using DB view public.disputed_territories_wms_view (OSM-Notes-Ingestion refresh)."
+   if create_feature_type_from_table "${DISPUTED_TERRITORIES_LAYER_NAME}" "disputed_territories_wms_view" "Disputed Territories (Ingestion)" "Curated disputed/unclaimed territories provided by OSM-Notes-Ingestion."; then
+    DISPUTED_TERRITORIES_CREATED_THIS_RUN=true
+   fi
+  else
+   print_status "${YELLOW}" "   View disputed_territories_wms_view missing; falling back to GeoServer SQL layer on disputed_territories_wms."
+   local DISPUTED_TERRITORIES_SQL="SELECT id, kind::text AS kind, name, description, reference_url, updated_at, geom AS geometry FROM public.disputed_territories_wms WHERE geom IS NOT NULL ORDER BY kind, name"
+   if create_sql_view_layer "${DISPUTED_TERRITORIES_LAYER_NAME}" "${DISPUTED_TERRITORIES_SQL}" "Disputed Territories (Ingestion)" "Curated disputed/unclaimed territories provided by OSM-Notes-Ingestion." "geometry"; then
+    DISPUTED_TERRITORIES_CREATED_THIS_RUN=true
+   fi
+  fi
+  if [[ "${DISPUTED_TERRITORIES_CREATED_THIS_RUN}" == "true" ]]; then
    OPTIONAL_DISPUTED_TERRITORIES_CREATED=true
    # Reuse the disputed style as fallback until a dedicated style is provided.
    local DISPUTED_STYLE_NAME
@@ -325,10 +339,13 @@ install_geoserver_config() {
     DISPUTED_STYLE_NAME="${WMS_STYLE_DISPUTED_NAME}"
    fi
    assign_style_to_layer "${DISPUTED_TERRITORIES_LAYER_NAME}" "${DISPUTED_STYLE_NAME}"
+  else
+   print_status "${YELLOW}" "⚠️  Optional layer disputedterritories was not created (GeoServer REST or DB permissions)."
+   print_status "${YELLOW}" "   Check GeoServer logs and that the GeoServer role can SELECT the view/table."
   fi
  else
-  print_status "${YELLOW}" "⚠️  Optional layer skipped: public.disputed_territories_wms not found"
-  print_status "${YELLOW}" "   Run OSM-Notes-Ingestion disputed territories update to enable it."
+  print_status "${YELLOW}" "⚠️  Optional layer skipped: public.disputed_territories_wms_view and public.disputed_territories_wms not found"
+  print_status "${YELLOW}" "   Run OSM-Notes-Ingestion disputed territories update (e.g. updateDisputedTerritoriesWMS.sh) to enable it."
  fi
 
  print_status "${GREEN}" "✅ GeoServer configuration completed successfully"

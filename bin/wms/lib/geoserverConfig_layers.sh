@@ -3,7 +3,7 @@
 # Functions for managing GeoServer layers and feature types
 #
 # Author: Andres Gomez (AngocA)
-# Version: 2025-12-08
+# Version: 2026-05-01
 # Function to create feature type from table
 create_feature_type_from_table() {
  local LAYER_NAME="${1}"
@@ -57,6 +57,62 @@ create_feature_type_from_table() {
            \"maxOccurs\": 1,
            \"nillable\": true,
            \"binding\": \"java.lang.String\"
+         },
+         {
+           \"name\": \"geometry\",
+           \"minOccurs\": 1,
+           \"maxOccurs\": 1,
+           \"nillable\": false,
+           \"binding\": \"org.locationtech.jts.geom.Geometry\"
+         }
+       ]
+     }"
+  elif echo "${TABLE_NAME}" | grep -qi "disputed_territories_wms_view"; then
+   # OSM-Notes-Ingestion public.disputed_territories_wms_view (geom exposed as geometry)
+   ATTRIBUTES_JSON=",
+     \"attributes\": {
+       \"attribute\": [
+         {
+           \"name\": \"id\",
+           \"minOccurs\": 0,
+           \"maxOccurs\": 1,
+           \"nillable\": true,
+           \"binding\": \"java.lang.Long\"
+         },
+         {
+           \"name\": \"kind\",
+           \"minOccurs\": 0,
+           \"maxOccurs\": 1,
+           \"nillable\": true,
+           \"binding\": \"java.lang.String\"
+         },
+         {
+           \"name\": \"name\",
+           \"minOccurs\": 0,
+           \"maxOccurs\": 1,
+           \"nillable\": true,
+           \"binding\": \"java.lang.String\"
+         },
+         {
+           \"name\": \"description\",
+           \"minOccurs\": 0,
+           \"maxOccurs\": 1,
+           \"nillable\": true,
+           \"binding\": \"java.lang.String\"
+         },
+         {
+           \"name\": \"reference_url\",
+           \"minOccurs\": 0,
+           \"maxOccurs\": 1,
+           \"nillable\": true,
+           \"binding\": \"java.lang.String\"
+         },
+         {
+           \"name\": \"updated_at\",
+           \"minOccurs\": 0,
+           \"maxOccurs\": 1,
+           \"nillable\": true,
+           \"binding\": \"java.sql.Timestamp\"
          },
          {
            \"name\": \"geometry\",
